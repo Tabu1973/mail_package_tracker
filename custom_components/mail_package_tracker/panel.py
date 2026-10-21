@@ -170,10 +170,7 @@ async def async_setup_panel_and_ws(hass: HomeAssistant, coordinator: MailPackage
         await hass.http.async_register_static_paths(paths)
         hass.data[f"{DOMAIN}_static_registered"] = True
 
-    if not hass.data.get(f"{DOMAIN}_ws_cmds_registered"):
-        _register_websocket_commands(hass)
-        hass.data[f"{DOMAIN}_ws_cmds_registered"] = True
-
+    _register_websocket_commands(hass)
     await async_update_sidebar_panel(hass, coordinator.show_in_sidebar)
 
 
@@ -468,6 +465,7 @@ def _register_websocket_commands(hass: HomeAssistant) -> None:
             },
         )
 
+    ws_handlers = hass.data.get("websocket_api")
     for cmd in (
         ws_get_data,
         ws_save_carrier,
@@ -477,4 +475,10 @@ def _register_websocket_commands(hass: HomeAssistant) -> None:
         ws_scan_now,
         ws_import_carrier_json,
     ):
-        websocket_api.async_register_command(hass, cmd)
+        cmd_type = getattr(cmd, "_ws_command", None)
+        if isinstance(ws_handlers, dict) and cmd_type in ws_handlers:
+            ws_handlers.pop(cmd_type, None)
+        try:
+            websocket_api.async_register_command(hass, cmd)
+        except Exception:  # noqa: BLE001
+            pass

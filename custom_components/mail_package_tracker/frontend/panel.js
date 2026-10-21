@@ -65,22 +65,26 @@ const I18N = {
     toast_applied: "✅ E-Mail als Paket übernommen!",
     toast_removed: "🗑️ Paket entfernt.",
     confirm_delete: (n) => `Lieferant "${n}" wirklich löschen?`,
-    btn_import_json: "📥 JSON Import",
+    btn_import_new: "📥 Neu (JSON)",
+    btn_import_overwrite: "📥 JSON Import (Überschreiben)",
     btn_export_json: "📤 JSON Export",
     lbl_languages: "🌐 Unterstützte Sprachen (im JSON)",
-    json_modal_export_title: (n) => `📤 JSON-Export: ${n}`,
-    json_modal_import_title: "📥 Lieferant / Paketdienst per JSON importieren & prüfen",
-    json_modal_desc: "Teile diesen Lieferanten als .json-Datei mit der Community oder füge hier ein JSON ein. Vor dem Import werden JSON-Syntax, Pflichtfelder, Sprachen (de/en) und reguläre Ausdrücke automatisch geprüft.",
-    btn_upload_file: "📂 .json-Datei auswählen",
-    btn_download_file: "💾 Als .json-Datei herunterladen",
+    json_new_title: "📥 Neuen Lieferanten per JSON anlegen",
+    json_new_desc: "Wähle eine .json-Datei aus oder füge den JSON-Code unten ein. Syntax, Pflichtfelder und Sprachen (de/en) werden sofort live geprüft und direkt in die Formularfelder übernommen.",
+    json_overwrite_title: (n) => `📥 JSON für „${n}“ importieren / bearbeiten (Überschreiben)`,
+    json_overwrite_desc: (n) => `Lade eine .json-Datei oder bearbeite den JSON-Code direkt, um den bestehenden Lieferanten „${n}“ zu aktualisieren.`,
+    btn_upload_file: "📂 .json-Datei laden",
+    btn_download_file: "💾 .json herunterladen",
     btn_copy_json: "📋 JSON kopieren",
-    btn_validate_json: "🔍 Syntax & Schema prüfen",
-    btn_apply_json: "📥 Lieferant importieren & speichern",
-    btn_close: "✖ Schließen",
+    btn_validate_json: "🔍 Syntax prüfen",
+    btn_apply_new_json: "📥 Neuen Lieferanten jetzt anlegen",
+    btn_apply_overwrite_json: (n) => `💾 „${n}“ mit diesem JSON überschreiben`,
+    btn_close: "✖ JSON-Ansicht schließen",
     val_ok_title: "✅ JSON-Syntax & Schema sind gültig!",
-    val_err_title: "❌ JSON-Prüfung fehlgeschlagen:",
+    val_err_title: "❌ Fehler im JSON:",
     toast_copied: "📋 JSON in die Zwischenablage kopiert!",
-    toast_imported: (n) => `✅ Lieferant "${n}" erfolgreich aus JSON importiert!`,
+    toast_exported: (f) => `📤 ${f} heruntergeladen!`,
+    toast_imported: (n) => `✅ Lieferant "${n}" erfolgreich aus JSON gespeichert!`,
   },
   en: {
     subtitle: (c, p) => `${c} Carriers • ${p} Stored Packages`,
@@ -148,22 +152,26 @@ const I18N = {
     toast_applied: "✅ Email imported as package!",
     toast_removed: "🗑️ Package removed.",
     confirm_delete: (n) => `Really delete carrier "${n}"?`,
-    btn_import_json: "📥 JSON Import",
+    btn_import_new: "📥 New (JSON)",
+    btn_import_overwrite: "📥 JSON Import (Overwrite)",
     btn_export_json: "📤 JSON Export",
     lbl_languages: "🌐 Supported Languages (in JSON)",
-    json_modal_export_title: (n) => `📤 JSON Export: ${n}`,
-    json_modal_import_title: "📥 Import & Validate Carrier / Shop JSON",
-    json_modal_desc: "Share this carrier rule as a .json file with the community or paste a JSON rule below. JSON syntax, required fields, languages (de/en), and regular expressions are validated automatically before import.",
-    btn_upload_file: "📂 Choose .json File",
-    btn_download_file: "💾 Download .json File",
+    json_new_title: "📥 Create New Carrier from JSON",
+    json_new_desc: "Choose a .json file or paste the JSON code below. Syntax, required fields, and languages (de/en) are validated live and populated directly into the form fields.",
+    json_overwrite_title: (n) => `📥 Import / Edit JSON for "${n}" (Overwrite)`,
+    json_overwrite_desc: (n) => `Load a .json file or edit the JSON directly to overwrite the existing carrier "${n}".`,
+    btn_upload_file: "📂 Load .json File",
+    btn_download_file: "💾 Download .json",
     btn_copy_json: "📋 Copy JSON",
-    btn_validate_json: "🔍 Validate Syntax & Schema",
-    btn_apply_json: "📥 Import & Save Carrier",
-    btn_close: "✖ Close",
+    btn_validate_json: "🔍 Check Syntax",
+    btn_apply_new_json: "📥 Create & Save New Carrier",
+    btn_apply_overwrite_json: (n) => `💾 Overwrite "${n}" with this JSON`,
+    btn_close: "✖ Close JSON View",
     val_ok_title: "✅ JSON Syntax & Schema Valid!",
     val_err_title: "❌ JSON Validation Failed:",
     toast_copied: "📋 JSON copied to clipboard!",
-    toast_imported: (n) => `✅ Carrier "${n}" successfully imported from JSON!`,
+    toast_exported: (f) => `📤 Downloaded ${f}!`,
+    toast_imported: (n) => `✅ Carrier "${n}" successfully saved from JSON!`,
   },
 };
 
@@ -317,25 +325,204 @@ class MailPackageTrackerPanel extends HTMLElement {
     }
   }
 
-  _openExportJson() {
-    const rule = this._readFormRule();
-    this._jsonModalMode = "export";
-    this._jsonModalText = JSON.stringify(rule, null, 2);
-    this._jsonValidation = null;
-    this._jsonModalOpen = true;
-    this._render();
-    this._validateOrImportJson(false);
+  _validateCarrierJsonLocal(rawJson, forceCarrierId = null) {
+    const isDe = this._currentLang() === "de";
+    const errors = [];
+    let data = null;
+
+    if (!rawJson || !rawJson.trim()) {
+      return {
+        valid: false,
+        errors: [isDe ? "Bitte JSON-Code einfügen oder eine .json-Datei auswählen." : "Please paste JSON code or choose a .json file."],
+        normalized: null,
+      };
+    }
+
+    try {
+      data = JSON.parse(rawJson);
+    } catch (err) {
+      return {
+        valid: false,
+        errors: [
+          isDe
+            ? `JSON-Syntaxfehler: ${err.message}`
+            : `JSON Syntax Error: ${err.message}`,
+        ],
+        normalized: null,
+      };
+    }
+
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      return {
+        valid: false,
+        errors: [isDe ? "Das JSON muss ein Objekt { ... } sein." : "Root JSON element must be an object { ... }."],
+        normalized: null,
+      };
+    }
+
+    const name = String(data.name || "").trim();
+    if (!name) {
+      errors.push(isDe ? "Pflichtfeld 'name' fehlt oder ist leer." : "Missing required field 'name'.");
+    }
+
+    const rawId = forceCarrierId || String(data.id || name).trim();
+    const cid = rawId.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 20);
+    if (!cid) {
+      errors.push(isDe ? "Pflichtfeld 'id' / 'name' ungültig." : "Missing or invalid 'id' / 'name'.");
+    }
+
+    // Validate languages ("de", "en")
+    let rawLangs = data.languages !== undefined ? data.languages : data.language;
+    let langs = [];
+    if (typeof rawLangs === "string") {
+      langs = rawLangs.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    } else if (Array.isArray(rawLangs)) {
+      langs = rawLangs.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+    }
+
+    if (!langs.length) {
+      errors.push(
+        isDe
+          ? 'Pflichtfeld \'languages\' fehlt (z. B. ["de", "en"], ["de"] oder ["en"]).'
+          : 'Missing required field \'languages\' (e.g. ["de", "en"], ["de"], or ["en"]).'
+      );
+    } else {
+      const invalidLangs = langs.filter((l) => l !== "de" && l !== "en");
+      if (invalidLangs.length) {
+        errors.push(
+          isDe
+            ? `Ungültige Sprache(n) in 'languages': ${invalidLangs.join(", ")} (erlaubt: "de", "en").`
+            : `Unsupported language code(s) in 'languages': ${invalidLangs.join(", ")} (allowed: "de", "en").`
+        );
+      }
+      langs = ["de", "en"].filter((l) => langs.includes(l));
+    }
+
+    const listFields = [
+      "sender_patterns",
+      "subject_patterns",
+      "ordered_patterns",
+      "in_transit_patterns",
+      "out_for_delivery_patterns",
+      "delivered_patterns",
+      "tomorrow_patterns",
+      "exclude_patterns",
+    ];
+    const normLists = {};
+    for (const lf of listFields) {
+      const val = data[lf] === undefined ? [] : data[lf];
+      if (!Array.isArray(val) || val.some((x) => typeof x !== "string")) {
+        errors.push(
+          isDe
+            ? `Feld '${lf}' muss eine Liste von Texten sein (z. B. ["wort1", "wort2"]).`
+            : `Field '${lf}' must be an array of strings.`
+        );
+        normLists[lf] = [];
+      } else {
+        normLists[lf] = val.map((x) => x.trim()).filter(Boolean);
+      }
+    }
+
+    if (!normLists.sender_patterns || normLists.sender_patterns.length === 0) {
+      errors.push(
+        isDe
+          ? "Feld 'sender_patterns' muss mindestens einen Absender enthalten (z. B. [\"sunlu.com\"])."
+          : "Field 'sender_patterns' must contain at least one sender domain/address."
+      );
+    }
+
+    const statusCount =
+      (normLists.ordered_patterns?.length || 0) +
+      (normLists.in_transit_patterns?.length || 0) +
+      (normLists.out_for_delivery_patterns?.length || 0) +
+      (normLists.delivered_patterns?.length || 0);
+    if (statusCount === 0) {
+      errors.push(
+        isDe
+          ? "Mindestens eine Status-Wortliste ('ordered_patterns', 'in_transit_patterns', 'out_for_delivery_patterns' oder 'delivered_patterns') muss gefüllt sein."
+          : "At least one status pattern list ('ordered_patterns', 'in_transit_patterns', 'out_for_delivery_patterns', 'delivered_patterns') must contain keywords."
+      );
+    }
+
+    for (const rf of ["tracking_regex", "content_regex", "tracking_url_regex"]) {
+      const rval = String(data[rf] || "").trim();
+      if (rval && (rval.startsWith("(") || rval.includes("[0-9]") || rval.includes("\\s") || rval.includes("[^"))) {
+        try {
+          new RegExp(rval);
+        } catch (rerr) {
+          errors.push(
+            isDe
+              ? `Ungültiger regulärer Ausdruck in '${rf}': ${rerr.message}`
+              : `Invalid regular expression in '${rf}': ${rerr.message}`
+          );
+        }
+      }
+    }
+
+    const normalized = {
+      schema_version: 1,
+      id: cid,
+      name,
+      icon: String(data.icon || "mdi:package-variant-closed").trim(),
+      languages: langs.length ? langs : ["de", "en"],
+      enabled: data.enabled !== false,
+      ...normLists,
+      tracking_regex: String(data.tracking_regex || "").trim(),
+      content_regex: String(data.content_regex || "").trim(),
+      tracking_url_regex: String(data.tracking_url_regex || "").trim(),
+      default_tracking_url: String(data.default_tracking_url || "").trim(),
+    };
+
+    return {
+      valid: errors.length === 0,
+      errors,
+      normalized: errors.length === 0 ? normalized : null,
+    };
   }
 
-  _openImportJson() {
+  _populateFormFromRule(r) {
+    const root = this.shadowRoot;
+    if (!root || !r) return;
+    const setVal = (sel, val) => {
+      const el = root.querySelector(sel);
+      if (el) el.value = val ?? "";
+    };
+    setVal("#f-name", r.name || "");
+    if (this._isNewCarrier) {
+      setVal("#f-id", r.id || "");
+    }
+    setVal("#f-icon", r.icon || "mdi:package-variant-closed");
+    const chkEnabled = root.querySelector("#f-enabled");
+    if (chkEnabled) chkEnabled.checked = r.enabled !== false;
+    const langs = Array.isArray(r.languages) && r.languages.length ? r.languages : ["de", "en"];
+    const chkDe = root.querySelector("#f-lang-de");
+    const chkEn = root.querySelector("#f-lang-en");
+    if (chkDe) chkDe.checked = langs.includes("de");
+    if (chkEn) chkEn.checked = langs.includes("en");
+
+    setVal("#f-sender", this._listToStr(r.sender_patterns));
+    setVal("#f-subject", this._listToStr(r.subject_patterns));
+    setVal("#f-ordered", this._listToStr(r.ordered_patterns));
+    setVal("#f-transit", this._listToStr(r.in_transit_patterns));
+    setVal("#f-ofd", this._listToStr(r.out_for_delivery_patterns));
+    setVal("#f-delivered", this._listToStr(r.delivered_patterns));
+    setVal("#f-tomorrow", this._listToStr(r.tomorrow_patterns));
+    setVal("#f-exclude", this._listToStr(r.exclude_patterns));
+    setVal("#f-tregex", r.tracking_regex || "");
+    setVal("#f-cregex", r.content_regex || "");
+    setVal("#f-uregex", r.tracking_url_regex || "");
+    setVal("#f-defurl", r.default_tracking_url || "");
+  }
+
+  _openImportNewCarrierJson() {
     const sample = {
       schema_version: 1,
-      id: "mein_shop",
-      name: "Mein Shop",
+      id: "neuer_shop",
+      name: "Neuer Shop",
       icon: "mdi:package-variant-closed",
       languages: ["de", "en"],
       enabled: true,
-      sender_patterns: ["mein-shop.de"],
+      sender_patterns: ["beispiel-shop.de"],
       subject_patterns: [],
       ordered_patterns: ["bestellbestätigung", "order confirmed"],
       in_transit_patterns: ["wurde versandt", "shipped", "unterwegs"],
@@ -348,11 +535,37 @@ class MailPackageTrackerPanel extends HTMLElement {
       tracking_url_regex: "dhl.de, tracking.dpd.de, myhermes.de",
       default_tracking_url: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
     };
-    this._jsonModalMode = "import";
+    this._isNewCarrier = true;
+    this._jsonModalMode = "new";
     this._jsonModalText = JSON.stringify(sample, null, 2);
-    this._jsonValidation = null;
+    this._jsonValidation = this._validateCarrierJsonLocal(this._jsonModalText, null);
     this._jsonModalOpen = true;
     this._render();
+  }
+
+  _openOverwriteCarrierJson() {
+    const rule = this._readFormRule();
+    this._isNewCarrier = false;
+    this._jsonModalMode = "overwrite";
+    this._jsonModalText = JSON.stringify(rule, null, 2);
+    this._jsonValidation = this._validateCarrierJsonLocal(this._jsonModalText, this._selectedCarrierId);
+    this._jsonModalOpen = true;
+    this._render();
+  }
+
+  _exportCarrierDirect() {
+    const t = this._t();
+    const rule = this._readFormRule();
+    const raw = JSON.stringify(rule, null, 2) + "\n";
+    const filename = `${rule.id || "carrier"}.json`;
+    const blob = new Blob([raw], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    this._showToast(t.toast_exported(filename));
   }
 
   async _validateOrImportJson(apply = false) {
@@ -361,24 +574,35 @@ class MailPackageTrackerPanel extends HTMLElement {
     if (ta) {
       this._jsonModalText = ta.value;
     }
+    const forceId = this._jsonModalMode === "overwrite" && !this._isNewCarrier ? this._selectedCarrierId : null;
+    const res = this._validateCarrierJsonLocal(this._jsonModalText, forceId);
+    this._jsonValidation = res;
+    this._renderJsonValidationOnly();
+
+    if (res.valid && res.normalized) {
+      // Immediately sync into form fields so user sees the imported values live
+      this._populateFormFromRule(res.normalized);
+    }
+
+    if (!apply || !res.valid || !res.normalized) {
+      return;
+    }
+
+    const norm = res.normalized;
     try {
-      const res = await this._hass.callWS({
-        type: "mail_package_tracker/import_carrier_json",
-        raw_json: this._jsonModalText,
-        apply,
+      const wsRes = await this._hass.callWS({
+        type: "mail_package_tracker/save_carrier",
+        carrier_id: norm.id,
+        rule: norm,
+        rescan: true,
       });
-      this._jsonValidation = res;
-      if (apply && res.valid && res.imported) {
-        this._carriers = res.carriers || this._carriers;
-        this._packages = res.packages || this._packages;
-        this._selectedCarrierId = res.carrier_id;
-        this._isNewCarrier = false;
-        this._jsonModalOpen = false;
-        this._render();
-        this._showToast(t.toast_imported(res.normalized?.name || res.carrier_id));
-        return;
-      }
-      this._renderJsonValidationOnly();
+      this._carriers = wsRes.carriers || this._carriers;
+      this._packages = wsRes.packages || this._packages;
+      this._selectedCarrierId = wsRes.carrier_id;
+      this._isNewCarrier = false;
+      this._jsonModalOpen = false;
+      this._render();
+      this._showToast(t.toast_imported(norm.name));
     } catch (err) {
       this._showToast("❌ " + (err.message || err));
     }
@@ -897,38 +1121,42 @@ class MailPackageTrackerPanel extends HTMLElement {
       })
       .join("");
 
+    const carrierDisplayName = this._escape(r.name || this._selectedCarrierId || "");
     const jsonBoxHtml = this._jsonModalOpen
       ? `
-        <div class="card" style="margin-bottom:18px;border:1px solid var(--primary-color, #03a9f4);">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
-            <h3 style="margin:0;font-size:16px;">
-              ${this._jsonModalMode === "export" ? t.json_modal_export_title(this._escape(r.name || this._selectedCarrierId)) : t.json_modal_import_title}
-            </h3>
+        <div style="margin-bottom:18px;padding:14px;border-radius:10px;background:rgba(3,169,244,0.06);border:1px solid var(--primary-color, #03a9f4);">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+            <strong style="font-size:15px;">
+              ${this._jsonModalMode === "new" ? t.json_new_title : t.json_overwrite_title(carrierDisplayName)}
+            </strong>
             <button id="btn-json-close" class="btn btn-sec" style="padding:5px 10px;font-size:12px;">${t.btn_close}</button>
           </div>
-          <p style="margin:0 0 10px 0;font-size:12px;color:var(--secondary-text-color);">${t.json_modal_desc}</p>
+          <p style="margin:0 0 10px 0;font-size:12px;color:var(--secondary-text-color);">
+            ${this._jsonModalMode === "new" ? t.json_new_desc : t.json_overwrite_desc(carrierDisplayName)}
+          </p>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
             <input id="json-file-input" type="file" accept=".json,application/json" style="display:none;" />
             <button id="btn-json-upload" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_upload_file}</button>
             <button id="btn-json-download" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_download_file}</button>
             <button id="btn-json-copy" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_copy_json}</button>
             <button id="btn-json-validate" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_validate_json}</button>
-            <button id="btn-json-apply" class="btn" style="padding:7px 14px;font-size:12px;">${t.btn_apply_json}</button>
+            <button id="btn-json-apply" class="btn" style="padding:7px 14px;font-size:12px;">
+              ${this._jsonModalMode === "new" ? t.btn_apply_new_json : t.btn_apply_overwrite_json(carrierDisplayName)}
+            </button>
           </div>
-          <textarea id="json-modal-textarea" style="font-family:monospace;font-size:12px;min-height:220px;">${this._escape(this._jsonModalText)}</textarea>
+          <textarea id="json-modal-textarea" style="font-family:monospace;font-size:12px;min-height:200px;">${this._escape(this._jsonModalText)}</textarea>
           <div id="json-val-box"></div>
         </div>
       `
       : "";
 
     return `
-      ${jsonBoxHtml}
       <div class="layout-split">
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:6px;flex-wrap:wrap;">
             <strong style="font-size:15px;">${t.carriers_title}</strong>
             <div style="display:flex;gap:6px;">
-              <button id="btn-import-json" class="btn btn-sec" style="padding:6px 10px;font-size:12px;">${t.btn_import_json}</button>
+              <button id="btn-import-new-json" class="btn btn-sec" style="padding:6px 10px;font-size:12px;">${t.btn_import_new}</button>
               <button id="btn-new-carrier" class="btn" style="padding:6px 12px;font-size:12px;">${t.btn_new}</button>
             </div>
           </div>
@@ -938,14 +1166,17 @@ class MailPackageTrackerPanel extends HTMLElement {
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
             <h2 style="margin:0;font-size:18px;">
-              ${this._isNewCarrier ? t.new_carrier_title : t.edit_carrier_title(this._escape(r.name || this._selectedCarrierId))}
+              ${this._isNewCarrier ? t.new_carrier_title : t.edit_carrier_title(carrierDisplayName)}
             </h2>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              ${!this._isNewCarrier && this._selectedCarrierId ? `<button id="btn-import-overwrite-json" class="btn btn-sec">${t.btn_import_overwrite}</button>` : ""}
               <button id="btn-export-json" class="btn btn-sec">${t.btn_export_json}</button>
               ${!this._isNewCarrier && this._selectedCarrierId ? `<button id="btn-del-carrier" class="btn btn-danger">${t.btn_delete}</button>` : ""}
               <button id="btn-save-carrier" class="btn">${t.btn_save}</button>
             </div>
           </div>
+
+          ${jsonBoxHtml}
 
           <div class="form-grid">
             <div class="field">
@@ -1143,6 +1374,7 @@ class MailPackageTrackerPanel extends HTMLElement {
       item.addEventListener("click", (e) => {
         if (e.target.classList.contains("carrier-toggle")) return;
         this._isNewCarrier = false;
+        this._jsonModalOpen = false;
         this._selectedCarrierId = item.dataset.cid;
         this._render();
       });
@@ -1157,11 +1389,13 @@ class MailPackageTrackerPanel extends HTMLElement {
 
     root.querySelector("#btn-new-carrier")?.addEventListener("click", () => {
       this._isNewCarrier = true;
+      this._jsonModalOpen = false;
       this._render();
     });
 
-    root.querySelector("#btn-import-json")?.addEventListener("click", () => this._openImportJson());
-    root.querySelector("#btn-export-json")?.addEventListener("click", () => this._openExportJson());
+    root.querySelector("#btn-import-new-json")?.addEventListener("click", () => this._openImportNewCarrierJson());
+    root.querySelector("#btn-import-overwrite-json")?.addEventListener("click", () => this._openOverwriteCarrierJson());
+    root.querySelector("#btn-export-json")?.addEventListener("click", () => this._exportCarrierDirect());
     root.querySelector("#btn-json-close")?.addEventListener("click", () => {
       this._jsonModalOpen = false;
       this._render();
@@ -1180,6 +1414,9 @@ class MailPackageTrackerPanel extends HTMLElement {
         this._validateOrImportJson(false);
       };
       reader.readAsText(file, "utf-8");
+    });
+    root.querySelector("#json-modal-textarea")?.addEventListener("input", () => {
+      this._validateOrImportJson(false);
     });
     root.querySelector("#btn-json-download")?.addEventListener("click", () => this._downloadCurrentJson());
     root.querySelector("#btn-json-copy")?.addEventListener("click", () => this._copyCurrentJson());
