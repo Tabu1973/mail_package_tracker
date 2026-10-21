@@ -62,22 +62,17 @@ def validate_carrier_json(raw_json: str) -> dict[str, Any]:
     if not cid:
         errors.append("Missing or invalid 'id' / 'name'.")
 
-    # Validate languages ("de", "en")
-    raw_langs = data.get("languages", data.get("language"))
-    langs: list[str] = []
-    if isinstance(raw_langs, str):
-        langs = [x.strip().lower() for x in raw_langs.split(",") if x.strip()]
-    elif isinstance(raw_langs, list):
-        langs = [str(x).strip().lower() for x in raw_langs if str(x).strip()]
+    # Validate language ("de" or "en")
+    raw_lang = data.get("language", data.get("languages"))
+    lang = ""
+    if isinstance(raw_lang, str):
+        lang = raw_lang.strip().lower()
+    elif isinstance(raw_lang, list) and raw_lang:
+        lang = str(raw_lang[0]).strip().lower()
 
-    valid_lang_codes = {"de", "en"}
-    if not langs:
-        errors.append("Missing required field 'languages' (e.g. [\"de\", \"en\"], [\"de\"], or [\"en\"]).")
-    else:
-        invalid_langs = [l for l in langs if l not in valid_lang_codes]
-        if invalid_langs:
-            errors.append(f"Unsupported language code(s) in 'languages': {invalid_langs}. Allowed: ['de', 'en'].")
-        langs = [l for l in ["de", "en"] if l in langs]
+    if lang not in ("de", "en"):
+        errors.append("Field 'language' must be 'de' (German) or 'en' (English).")
+        lang = "de"
 
     list_fields = [
         "sender_patterns",
@@ -131,7 +126,7 @@ def validate_carrier_json(raw_json: str) -> dict[str, Any]:
         "id": cid,
         "name": name,
         "icon": str(data.get("icon") or "mdi:package-variant-closed").strip(),
-        "languages": langs or ["de", "en"],
+        "language": lang,
         "enabled": bool(data.get("enabled", True)),
         **normalized_lists,
         "tracking_regex": str(data.get("tracking_regex") or "").strip(),
@@ -253,8 +248,9 @@ def _register_websocket_commands(hass: HomeAssistant) -> None:
         existing.update(rule_in)
         existing["id"] = cid
         existing["schema_version"] = 1
-        if not existing.get("languages") or not isinstance(existing.get("languages"), list):
-            existing["languages"] = ["de", "en"]
+        existing.pop("languages", None)
+        if existing.get("language") not in ("de", "en"):
+            existing["language"] = "de"
         coord.carriers[cid] = existing
 
         def _sync_carrier_json_file() -> None:

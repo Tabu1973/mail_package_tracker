@@ -3,10 +3,7 @@
   "id": "aliexpress",
   "name": "AliExpress",
   "icon": "mdi:shopping",
-  "languages": [
-    "de",
-    "en"
-  ],
+  "language": "de",
   "enabled": true,
   "sender_patterns": [
     "aliexpress.com"
@@ -23,32 +20,24 @@
   ],
   "ordered_patterns": [
     "zahlung bestätigt",
-    "payment confirmed",
-    "bestellung bestätigt",
-    "order confirmed"
+    "bestellung bestätigt"
   ],
   "in_transit_patterns": [
     "wurde versandt",
-    "shipped",
     "unterwegs",
-    "im zielland angekommen",
-    "transit"
+    "im zielland angekommen"
   ],
   "out_for_delivery_patterns": [
     "in zustellung",
-    "out for delivery",
     "zur auslieferung bereit"
   ],
   "delivered_patterns": [
     "wurde zugestellt",
     "wurde geliefert",
-    "erfolgreich zugestellt",
-    "package delivered",
-    "delivered"
+    "erfolgreich zugestellt"
   ],
   "tomorrow_patterns": [
-    "morgen",
-    "tomorrow"
+    "morgen"
   ],
   "tracking_regex": "(0034[0-9]{16}|[A-Z]{2}[0-9]{9}[A-Z]{2}|[0-9]{12,16})",
   "tracking_url_regex": "(https://[^\\s\\\"'<]+(?:aliexpress\\.com|cainiao\\.com|dhl\\.de)[^\\s\\\"'<]*)",

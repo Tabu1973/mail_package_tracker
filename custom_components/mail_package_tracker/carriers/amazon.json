@@ -3,16 +3,12 @@
   "id": "amazon",
   "name": "Amazon",
   "icon": "mdi:cart",
-  "languages": [
-    "de",
-    "en"
-  ],
+  "language": "de",
   "enabled": true,
   "sender_patterns": [
     "amazon.de",
     "amazon.com",
-    "amazon.eu",
-    "amazon.co.uk"
+    "amazon.eu"
   ],
   "subject_patterns": [],
   "exclude_patterns": [
@@ -24,28 +20,20 @@
     "storniert",
     "gutschrift",
     "rücksendung",
-    "ersatzlieferung",
-    "cancelled",
-    "refund"
+    "ersatzlieferung"
   ],
   "ordered_patterns": [
     "bestellt:",
     "bestellbestätigung",
     "vielen dank für deine bestellung",
-    "vielen dank für ihre bestellung",
-    "order confirmation",
-    "ordered:",
-    "thank you for your order"
+    "vielen dank für ihre bestellung"
   ],
   "in_transit_patterns": [
     "versendet:",
     "dein paket wurde versendet",
     "wurde versandt",
     "wurde versendet",
-    "unterwegs",
-    "shipped:",
-    "your package has shipped",
-    "dispatched:"
+    "unterwegs"
   ],
   "out_for_delivery_patterns": [
     "in zustellung:",
@@ -54,9 +42,7 @@
     "wird heute zugestellt",
     "wird heute geliefert",
     "zustellung heute",
-    "heute bis",
-    "out for delivery:",
-    "arriving today"
+    "heute bis"
   ],
   "delivered_patterns": [
     "geliefert:",
@@ -66,9 +52,7 @@
     "erfolgreich zugestellt",
     "wurde an ",
     "wurde übergeben",
-    "liegt am ablageort",
-    "delivered:",
-    "has been delivered"
+    "liegt am ablageort"
   ],
   "tomorrow_patterns": [
     "ankunft morgen",
@@ -76,10 +60,9 @@
     "lieferung: morgen",
     "zustellung morgen",
     "wird morgen",
-    "kommt morgen",
-    "arriving tomorrow"
+    "kommt morgen"
   ],
-  "tracking_regex": "Bestellnr., Order #, shipmentId=",
+  "tracking_regex": "Bestellnr., shipmentId=",
   "tracking_url_regex": "(https://[^\\s\\\"'<]+amazon\\.[a-z.]+/(?:progress-tracker|gp/your-account|gp/css/shiptrack)[^\\s\\\"'<]*)",
   "default_tracking_url": "https://www.amazon.de/gp/your-account/order-history",
   "content_regex": "*"

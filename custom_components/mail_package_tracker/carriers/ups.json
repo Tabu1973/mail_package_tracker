@@ -3,10 +3,7 @@
   "id": "ups",
   "name": "UPS",
   "icon": "mdi:truck-fast",
-  "languages": [
-    "de",
-    "en"
-  ],
+  "language": "de",
   "enabled": true,
   "sender_patterns": [
     "ups.com"
@@ -18,29 +15,23 @@
   ],
   "exclude_patterns": [
     "newsletter",
-    "rechnung",
-    "invoice"
+    "rechnung"
   ],
   "ordered_patterns": [],
   "in_transit_patterns": [
     "unterwegs",
-    "geplante zustellung",
-    "shipped",
-    "on the way"
+    "geplante zustellung"
   ],
   "out_for_delivery_patterns": [
     "in zustellung",
-    "heute",
-    "out for delivery"
+    "heute"
   ],
   "delivered_patterns": [
     "wurde zugestellt",
-    "zugestellt",
-    "delivered"
+    "zugestellt"
   ],
   "tomorrow_patterns": [
-    "morgen",
-    "tomorrow"
+    "morgen"
   ],
   "tracking_regex": "(1Z[A-Z0-9]{16})",
   "tracking_url_regex": "(https://[^\\s\\\"'<]+ups\\.com/[^\\s\\\"'<]*)",

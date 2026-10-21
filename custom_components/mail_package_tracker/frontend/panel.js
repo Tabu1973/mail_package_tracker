@@ -68,9 +68,10 @@ const I18N = {
     btn_import_new: "📥 Neu (JSON)",
     btn_import_overwrite: "📥 JSON Import (Überschreiben)",
     btn_export_json: "📤 JSON Export",
-    lbl_languages: "🌐 Unterstützte Sprachen (im JSON)",
+    lbl_language: "🌐 Sprache der Filterregel (im JSON)",
+    empty_carriers_lang: "Für diese Sprache (🇩🇪 Deutsch) sind noch keine Lieferanten-Regeln angelegt.",
     json_new_title: "📥 Neuen Lieferanten per JSON anlegen",
-    json_new_desc: "Wähle eine .json-Datei aus oder füge den JSON-Code unten ein. Syntax, Pflichtfelder und Sprachen (de/en) werden sofort live geprüft und direkt in die Formularfelder übernommen.",
+    json_new_desc: "Wähle eine .json-Datei aus oder füge den JSON-Code unten ein. Syntax, Pflichtfelder und Sprache (de/en) werden sofort live geprüft und direkt in die Formularfelder übernommen.",
     json_overwrite_title: (n) => `📥 JSON für „${n}“ importieren / bearbeiten (Überschreiben)`,
     json_overwrite_desc: (n) => `Lade eine .json-Datei oder bearbeite den JSON-Code direkt, um den bestehenden Lieferanten „${n}“ zu aktualisieren.`,
     btn_upload_file: "📂 .json-Datei laden",
@@ -155,9 +156,10 @@ const I18N = {
     btn_import_new: "📥 New (JSON)",
     btn_import_overwrite: "📥 JSON Import (Overwrite)",
     btn_export_json: "📤 JSON Export",
-    lbl_languages: "🌐 Supported Languages (in JSON)",
+    lbl_language: "🌐 Rule Language (in JSON)",
+    empty_carriers_lang: "No English (🇬🇧 EN) carrier filter rules configured yet. Create a new rule or import a community .json file below!",
     json_new_title: "📥 Create New Carrier from JSON",
-    json_new_desc: "Choose a .json file or paste the JSON code below. Syntax, required fields, and languages (de/en) are validated live and populated directly into the form fields.",
+    json_new_desc: "Choose a .json file or paste the JSON code below. Syntax, required fields, and language (de/en) are validated live and populated directly into the form fields.",
     json_overwrite_title: (n) => `📥 Import / Edit JSON for "${n}" (Overwrite)`,
     json_overwrite_desc: (n) => `Load a .json file or edit the JSON directly to overwrite the existing carrier "${n}".`,
     btn_upload_file: "📂 Load .json File",
@@ -277,17 +279,14 @@ class MailPackageTrackerPanel extends HTMLElement {
     const root = this.shadowRoot;
     const name = root.querySelector("#f-name")?.value.trim() || "New Carrier";
     const idInput = root.querySelector("#f-id")?.value.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-    const langs = [];
-    if (root.querySelector("#f-lang-de")?.checked) langs.push("de");
-    if (root.querySelector("#f-lang-en")?.checked) langs.push("en");
-    if (langs.length === 0) langs.push("de", "en");
+    const lang = root.querySelector("#f-lang")?.value || this._currentLang();
 
     return {
       schema_version: 1,
       id: idInput,
       name,
       icon: root.querySelector("#f-icon")?.value.trim() || "mdi:package-variant-closed",
-      languages: langs,
+      language: lang === "en" ? "en" : "de",
       enabled: root.querySelector("#f-enabled")?.checked ?? true,
       sender_patterns: this._strToList(root.querySelector("#f-sender")?.value),
       subject_patterns: this._strToList(root.querySelector("#f-subject")?.value),
@@ -371,31 +370,27 @@ class MailPackageTrackerPanel extends HTMLElement {
       errors.push(isDe ? "Pflichtfeld 'id' / 'name' ungültig." : "Missing or invalid 'id' / 'name'.");
     }
 
-    // Validate languages ("de", "en")
-    let rawLangs = data.languages !== undefined ? data.languages : data.language;
-    let langs = [];
-    if (typeof rawLangs === "string") {
-      langs = rawLangs.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-    } else if (Array.isArray(rawLangs)) {
-      langs = rawLangs.map((s) => String(s).trim().toLowerCase()).filter(Boolean);
+    // Validate language ("de" or "en")
+    let rawLang = data.language !== undefined ? data.language : data.languages;
+    let lang = "";
+    if (typeof rawLang === "string") {
+      lang = rawLang.trim().toLowerCase();
+    } else if (Array.isArray(rawLang) && rawLang.length > 0) {
+      lang = String(rawLang[0]).trim().toLowerCase();
     }
 
-    if (!langs.length) {
+    if (!lang) {
       errors.push(
         isDe
-          ? 'Pflichtfeld \'languages\' fehlt (z. B. ["de", "en"], ["de"] oder ["en"]).'
-          : 'Missing required field \'languages\' (e.g. ["de", "en"], ["de"], or ["en"]).'
+          ? 'Pflichtfeld \'language\' fehlt (muss "de" oder "en" sein).'
+          : 'Missing required field \'language\' (must be "de" or "en").'
       );
-    } else {
-      const invalidLangs = langs.filter((l) => l !== "de" && l !== "en");
-      if (invalidLangs.length) {
-        errors.push(
-          isDe
-            ? `Ungültige Sprache(n) in 'languages': ${invalidLangs.join(", ")} (erlaubt: "de", "en").`
-            : `Unsupported language code(s) in 'languages': ${invalidLangs.join(", ")} (allowed: "de", "en").`
-        );
-      }
-      langs = ["de", "en"].filter((l) => langs.includes(l));
+    } else if (lang !== "de" && lang !== "en") {
+      errors.push(
+        isDe
+          ? `Ungültige Sprache in 'language': "${lang}" (erlaubt: "de" oder "en").`
+          : `Unsupported language code in 'language': "${lang}" (allowed: "de" or "en").`
+      );
     }
 
     const listFields = [
@@ -464,7 +459,7 @@ class MailPackageTrackerPanel extends HTMLElement {
       id: cid,
       name,
       icon: String(data.icon || "mdi:package-variant-closed").trim(),
-      languages: langs.length ? langs : ["de", "en"],
+      language: lang === "en" ? "en" : "de",
       enabled: data.enabled !== false,
       ...normLists,
       tracking_regex: String(data.tracking_regex || "").trim(),
@@ -494,11 +489,7 @@ class MailPackageTrackerPanel extends HTMLElement {
     setVal("#f-icon", r.icon || "mdi:package-variant-closed");
     const chkEnabled = root.querySelector("#f-enabled");
     if (chkEnabled) chkEnabled.checked = r.enabled !== false;
-    const langs = Array.isArray(r.languages) && r.languages.length ? r.languages : ["de", "en"];
-    const chkDe = root.querySelector("#f-lang-de");
-    const chkEn = root.querySelector("#f-lang-en");
-    if (chkDe) chkDe.checked = langs.includes("de");
-    if (chkEn) chkEn.checked = langs.includes("en");
+    setVal("#f-lang", r.language === "en" ? "en" : "de");
 
     setVal("#f-sender", this._listToStr(r.sender_patterns));
     setVal("#f-subject", this._listToStr(r.subject_patterns));
@@ -515,26 +506,49 @@ class MailPackageTrackerPanel extends HTMLElement {
   }
 
   _openImportNewCarrierJson() {
-    const sample = {
-      schema_version: 1,
-      id: "neuer_shop",
-      name: "Neuer Shop",
-      icon: "mdi:package-variant-closed",
-      languages: ["de", "en"],
-      enabled: true,
-      sender_patterns: ["beispiel-shop.de"],
-      subject_patterns: [],
-      ordered_patterns: ["bestellbestätigung", "order confirmed"],
-      in_transit_patterns: ["wurde versandt", "shipped", "unterwegs"],
-      out_for_delivery_patterns: ["in zustellung", "out for delivery"],
-      delivered_patterns: ["zugestellt", "geliefert", "delivered"],
-      tomorrow_patterns: ["morgen", "tomorrow"],
-      exclude_patterns: ["newsletter", "storniert", "cancelled"],
-      tracking_regex: "Trackingnummer:, Bestellung, Order #",
-      content_regex: "Artikel in dieser Lieferung, Bestellübersicht, *",
-      tracking_url_regex: "dhl.de, tracking.dpd.de, myhermes.de",
-      default_tracking_url: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
-    };
+    const curLang = this._currentLang();
+    const isDe = curLang === "de";
+    const sample = isDe
+      ? {
+          schema_version: 1,
+          id: "neuer_shop",
+          name: "Neuer Shop",
+          icon: "mdi:package-variant-closed",
+          language: "de",
+          enabled: true,
+          sender_patterns: ["beispiel-shop.de"],
+          subject_patterns: [],
+          ordered_patterns: ["bestellbestätigung", "vielen dank für deine bestellung"],
+          in_transit_patterns: ["wurde versandt", "unterwegs"],
+          out_for_delivery_patterns: ["in zustellung", "kommt heute"],
+          delivered_patterns: ["zugestellt", "geliefert"],
+          tomorrow_patterns: ["morgen"],
+          exclude_patterns: ["newsletter", "storniert"],
+          tracking_regex: "Trackingnummer:, Bestellung",
+          content_regex: "Artikel in dieser Lieferung, Bestellübersicht, *",
+          tracking_url_regex: "dhl.de, tracking.dpd.de, myhermes.de",
+          default_tracking_url: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
+        }
+      : {
+          schema_version: 1,
+          id: "new_shop_en",
+          name: "New Shop",
+          icon: "mdi:package-variant-closed",
+          language: "en",
+          enabled: true,
+          sender_patterns: ["example-shop.com"],
+          subject_patterns: [],
+          ordered_patterns: ["order confirmed", "thank you for your order"],
+          in_transit_patterns: ["has shipped", "on the way", "in transit"],
+          out_for_delivery_patterns: ["out for delivery", "arriving today"],
+          delivered_patterns: ["has been delivered", "delivered"],
+          tomorrow_patterns: ["arriving tomorrow", "tomorrow"],
+          exclude_patterns: ["newsletter", "cancelled"],
+          tracking_regex: "Tracking number:, Order #",
+          content_regex: "Items in this shipment, Order summary, *",
+          tracking_url_regex: "ups.com, fedex.com, dhl.com",
+          default_tracking_url: "",
+        };
     this._isNewCarrier = true;
     this._jsonModalMode = "new";
     this._jsonModalText = JSON.stringify(sample, null, 2);
@@ -657,14 +671,14 @@ class MailPackageTrackerPanel extends HTMLElement {
       return;
     }
     const n = v.normalized || {};
-    const langs = (n.languages || []).map((l) => (l === "de" ? "🇩🇪 DE" : "🇬🇧 EN")).join(", ");
+    const langLabel = n.language === "en" ? "🇬🇧 EN" : "🇩🇪 DE";
     box.innerHTML = `
       <div class="res-card res-ok" style="margin-top:10px;">
         <strong style="font-size:13px;">${t.val_ok_title}</strong>
         <div style="font-size:12px;margin-top:6px;">
           ID: <code>${this._escape(n.id)}</code> •
           Name: <strong>${this._escape(n.name)}</strong> •
-          Languages: <strong>${this._escape(langs)}</strong> •
+          Language: <strong>${langLabel}</strong> •
           Senders: <code>${this._escape((n.sender_patterns || []).join(", "))}</code>
         </div>
       </div>
@@ -802,27 +816,36 @@ class MailPackageTrackerPanel extends HTMLElement {
   _render() {
     const t = this._t();
     const curLang = this._currentLang();
-    const cList = Object.entries(this._carriers).sort((a, b) =>
-      (a[1].name || a[0]).localeCompare(b[1].name || b[0])
-    );
+    const cList = Object.entries(this._carriers)
+      .filter(([, c]) => (c.language || "de") === curLang)
+      .sort((a, b) => (a[1].name || a[0]).localeCompare(b[1].name || b[0]));
+
+    if (!this._isNewCarrier) {
+      const stillInLang = cList.some(([cid]) => cid === this._selectedCarrierId);
+      if (!stillInLang) {
+        this._selectedCarrierId = cList[0]?.[0] || null;
+      }
+    }
+
     const activeRule = this._isNewCarrier
       ? {
           id: "",
           name: "",
           icon: "mdi:package-variant-closed",
+          language: curLang,
           enabled: true,
           sender_patterns: [],
           subject_patterns: [],
-          ordered_patterns: ["bestätigt", "bestellbestätigung", "order confirmed", "thank you for your purchase"],
-          in_transit_patterns: ["versandt", "unterwegs", "auf dem weg", "shipped", "in transit", "on the way"],
-          out_for_delivery_patterns: ["in zustellung", "kommt heute", "out for delivery", "arriving today"],
-          delivered_patterns: ["zugestellt", "geliefert", "delivered", "has been delivered"],
-          tomorrow_patterns: ["morgen", "tomorrow", "arriving tomorrow"],
-          exclude_patterns: ["newsletter", "storniert", "cancelled"],
-          tracking_regex: "DHL Trackingnummer:, Trackingnummer:, Bestellung, Order #, Tracking number:",
-          content_regex: "Artikel in dieser Lieferung, Bestellübersicht, Items in this shipment",
-          tracking_url_regex: "dhl.de, myhermes.de, tracking.dpd.de, orders/",
-          default_tracking_url: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
+          ordered_patterns: curLang === "de" ? ["bestätigt", "bestellbestätigung"] : ["order confirmed", "thank you for your purchase"],
+          in_transit_patterns: curLang === "de" ? ["versandt", "unterwegs", "auf dem weg"] : ["shipped", "in transit", "on the way"],
+          out_for_delivery_patterns: curLang === "de" ? ["in zustellung", "kommt heute"] : ["out for delivery", "arriving today"],
+          delivered_patterns: curLang === "de" ? ["zugestellt", "geliefert"] : ["delivered", "has been delivered"],
+          tomorrow_patterns: curLang === "de" ? ["morgen"] : ["tomorrow", "arriving tomorrow"],
+          exclude_patterns: curLang === "de" ? ["newsletter", "storniert"] : ["newsletter", "cancelled"],
+          tracking_regex: curLang === "de" ? "DHL Trackingnummer:, Trackingnummer:, Bestellung" : "Tracking number:, Order #",
+          content_regex: curLang === "de" ? "Artikel in dieser Lieferung, Bestellübersicht" : "Items in this shipment, *",
+          tracking_url_regex: curLang === "de" ? "dhl.de, myhermes.de, tracking.dpd.de" : "ups.com, fedex.com, dhl.com",
+          default_tracking_url: curLang === "de" ? "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}" : "",
         }
       : this._carriers[this._selectedCarrierId] || {};
 
@@ -1100,26 +1123,26 @@ class MailPackageTrackerPanel extends HTMLElement {
   }
 
   _renderCarriersTab(cList, r, t) {
-    const rLangs = Array.isArray(r.languages) && r.languages.length ? r.languages : ["de", "en"];
-    const itemsHtml = cList
-      .map(([cid, c]) => {
-        const sel = !this._isNewCarrier && cid === this._selectedCarrierId ? "selected" : "";
-        const senders = (c.sender_patterns || []).slice(0, 2).join(", ");
-        const clangs = Array.isArray(c.languages) && c.languages.length ? c.languages : ["de", "en"];
-        const langBadges = clangs
-          .map((l) => `<span style="font-size:10px;opacity:0.85;margin-left:4px;">${l === "de" ? "🇩🇪" : "🇬🇧"}</span>`)
-          .join("");
-        return `
-          <div class="carrier-item ${sel}" data-cid="${this._escape(cid)}">
-            <div>
-              <div class="carrier-name">${this._escape(c.name || cid)} ${langBadges}</div>
-              <div class="carrier-sub">${this._escape(senders)}</div>
-            </div>
-            <input type="checkbox" class="carrier-toggle" data-cid="${this._escape(cid)}" ${c.enabled !== false ? "checked" : ""} />
-          </div>
-        `;
-      })
-      .join("");
+    const curLang = this._currentLang();
+    const rLang = r.language || curLang;
+    const itemsHtml = cList.length
+      ? cList
+          .map(([cid, c]) => {
+            const sel = !this._isNewCarrier && cid === this._selectedCarrierId ? "selected" : "";
+            const senders = (c.sender_patterns || []).slice(0, 2).join(", ");
+            const langBadge = `<span style="font-size:10px;opacity:0.85;margin-left:4px;">${(c.language || "de") === "de" ? "🇩🇪" : "🇬🇧"}</span>`;
+            return `
+              <div class="carrier-item ${sel}" data-cid="${this._escape(cid)}">
+                <div>
+                  <div class="carrier-name">${this._escape(c.name || cid)} ${langBadge}</div>
+                  <div class="carrier-sub">${this._escape(senders)}</div>
+                </div>
+                <input type="checkbox" class="carrier-toggle" data-cid="${this._escape(cid)}" ${c.enabled !== false ? "checked" : ""} />
+              </div>
+            `;
+          })
+          .join("")
+      : `<p style="font-size:12px;color:var(--secondary-text-color);margin:10px 0;">${t.empty_carriers_lang}</p>`;
 
     const carrierDisplayName = this._escape(r.name || this._selectedCarrierId || "");
     const jsonBoxHtml = this._jsonModalOpen
@@ -1150,11 +1173,129 @@ class MailPackageTrackerPanel extends HTMLElement {
       `
       : "";
 
+    const rightCardHtml =
+      !this._isNewCarrier && !this._selectedCarrierId
+        ? `
+          <div class="card">
+            <h2 style="margin-top:0;font-size:18px;">${t.carriers_title} (${curLang === "de" ? "🇩🇪 DE" : "🇬🇧 EN"})</h2>
+            <p style="font-size:13px;color:var(--secondary-text-color);margin-bottom:16px;">${t.empty_carriers_lang}</p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button id="btn-empty-new" class="btn">${t.btn_new}</button>
+              <button id="btn-empty-import" class="btn btn-sec">${t.btn_import_new}</button>
+            </div>
+          </div>
+        `
+        : `
+          <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+              <h2 style="margin:0;font-size:18px;">
+                ${this._isNewCarrier ? t.new_carrier_title : t.edit_carrier_title(carrierDisplayName)}
+              </h2>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                ${!this._isNewCarrier && this._selectedCarrierId ? `<button id="btn-import-overwrite-json" class="btn btn-sec">${t.btn_import_overwrite}</button>` : ""}
+                <button id="btn-export-json" class="btn btn-sec">${t.btn_export_json}</button>
+                ${!this._isNewCarrier && this._selectedCarrierId ? `<button id="btn-del-carrier" class="btn btn-danger">${t.btn_delete}</button>` : ""}
+                <button id="btn-save-carrier" class="btn">${t.btn_save}</button>
+              </div>
+            </div>
+
+            ${jsonBoxHtml}
+
+            <div class="form-grid">
+              <div class="field">
+                <label>${t.lbl_name}</label>
+                <input id="f-name" type="text" value="${this._escape(r.name || "")}" placeholder="${t.ph_name}" />
+                <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+                  <label style="font-size:12px;color:var(--secondary-text-color);font-weight:600;white-space:nowrap;">${t.lbl_language}:</label>
+                  <select id="f-lang" style="padding:5px 8px;font-size:12px;">
+                    <option value="de" ${rLang === "de" ? "selected" : ""}>🇩🇪 Deutsch (de)</option>
+                    <option value="en" ${rLang === "en" ? "selected" : ""}>🇬🇧 English (en)</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field">
+                <label>${t.lbl_id_icon}</label>
+                <div style="display:flex;gap:8px;">
+                  <input id="f-id" type="text" value="${this._escape(this._isNewCarrier ? "" : this._selectedCarrierId)}" ${this._isNewCarrier ? "" : "readonly"} placeholder="e.g. sunlu" style="flex:1;" />
+                  <input id="f-icon" type="text" value="${this._escape(r.icon || "mdi:package-variant-closed")}" placeholder="mdi:package-variant" style="flex:1;" />
+                </div>
+                <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;">
+                  <input id="f-enabled" type="checkbox" ${r.enabled !== false ? "checked" : ""} /> ${t.lbl_enabled}
+                </label>
+              </div>
+
+              <div class="field">
+                <label>${t.lbl_sender}</label>
+                <input id="f-sender" type="text" value="${this._escape(this._listToStr(r.sender_patterns))}" placeholder="sunlu.com, dhl.de" />
+                <small>${t.hint_sender}</small>
+              </div>
+              <div class="field">
+                <label>${t.lbl_subject}</label>
+                <input id="f-subject" type="text" value="${this._escape(this._listToStr(r.subject_patterns))}" placeholder="${t.ph_subject}" />
+                <small>${t.hint_subject}</small>
+              </div>
+
+              <div class="field">
+                <label>${t.lbl_ordered}</label>
+                <input id="f-ordered" type="text" value="${this._escape(this._listToStr(r.ordered_patterns))}" />
+                <small>${t.hint_ordered}</small>
+              </div>
+              <div class="field">
+                <label>${t.lbl_transit}</label>
+                <input id="f-transit" type="text" value="${this._escape(this._listToStr(r.in_transit_patterns))}" />
+                <small>${t.hint_transit}</small>
+              </div>
+
+              <div class="field">
+                <label>${t.lbl_ofd}</label>
+                <input id="f-ofd" type="text" value="${this._escape(this._listToStr(r.out_for_delivery_patterns))}" />
+              </div>
+              <div class="field">
+                <label>${t.lbl_delivered}</label>
+                <input id="f-delivered" type="text" value="${this._escape(this._listToStr(r.delivered_patterns))}" />
+              </div>
+
+              <div class="field">
+                <label>${t.lbl_tomorrow}</label>
+                <input id="f-tomorrow" type="text" value="${this._escape(this._listToStr(r.tomorrow_patterns))}" />
+              </div>
+              <div class="field">
+                <label>${t.lbl_exclude}</label>
+                <input id="f-exclude" type="text" value="${this._escape(this._listToStr(r.exclude_patterns))}" />
+              </div>
+
+              <div class="field full">
+                <label>${t.lbl_tregex}</label>
+                <input id="f-tregex" type="text" value="${this._escape(r.tracking_regex || "")}" placeholder="DHL Trackingnummer:, Bestellung, Order #" />
+                <small>${t.hint_tregex}</small>
+              </div>
+
+              <div class="field full">
+                <label>${t.lbl_cregex}</label>
+                <input id="f-cregex" type="text" value="${this._escape(r.content_regex || "")}" placeholder="Artikel in dieser Lieferung, Bestellübersicht, *" />
+                <small>${t.hint_cregex}</small>
+              </div>
+
+              <div class="field">
+                <label>${t.lbl_uregex}</label>
+                <input id="f-uregex" type="text" value="${this._escape(r.tracking_url_regex || "")}" placeholder="dhl.de, myhermes.de, orders/" />
+                <small>${t.hint_uregex}</small>
+              </div>
+
+              <div class="field">
+                <label>${t.lbl_defurl}</label>
+                <input id="f-defurl" type="text" value="${this._escape(r.default_tracking_url || "")}" placeholder="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}" />
+                <small>${t.hint_defurl}</small>
+              </div>
+            </div>
+          </div>
+        `;
+
     return `
       <div class="layout-split">
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:6px;flex-wrap:wrap;">
-            <strong style="font-size:15px;">${t.carriers_title}</strong>
+            <strong style="font-size:15px;">${t.carriers_title} (${curLang === "de" ? "🇩🇪 DE" : "🇬🇧 EN"})</strong>
             <div style="display:flex;gap:6px;">
               <button id="btn-import-new-json" class="btn btn-sec" style="padding:6px 10px;font-size:12px;">${t.btn_import_new}</button>
               <button id="btn-new-carrier" class="btn" style="padding:6px 12px;font-size:12px;">${t.btn_new}</button>
@@ -1163,111 +1304,7 @@ class MailPackageTrackerPanel extends HTMLElement {
           ${itemsHtml}
         </div>
 
-        <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-            <h2 style="margin:0;font-size:18px;">
-              ${this._isNewCarrier ? t.new_carrier_title : t.edit_carrier_title(carrierDisplayName)}
-            </h2>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              ${!this._isNewCarrier && this._selectedCarrierId ? `<button id="btn-import-overwrite-json" class="btn btn-sec">${t.btn_import_overwrite}</button>` : ""}
-              <button id="btn-export-json" class="btn btn-sec">${t.btn_export_json}</button>
-              ${!this._isNewCarrier && this._selectedCarrierId ? `<button id="btn-del-carrier" class="btn btn-danger">${t.btn_delete}</button>` : ""}
-              <button id="btn-save-carrier" class="btn">${t.btn_save}</button>
-            </div>
-          </div>
-
-          ${jsonBoxHtml}
-
-          <div class="form-grid">
-            <div class="field">
-              <label>${t.lbl_name}</label>
-              <input id="f-name" type="text" value="${this._escape(r.name || "")}" placeholder="${t.ph_name}" />
-              <div style="display:flex;align-items:center;gap:14px;margin-top:6px;flex-wrap:wrap;">
-                <span style="font-size:12px;color:var(--secondary-text-color);font-weight:600;">${t.lbl_languages}:</span>
-                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
-                  <input id="f-lang-de" type="checkbox" ${rLangs.includes("de") ? "checked" : ""} /> 🇩🇪 Deutsch (<code>de</code>)
-                </label>
-                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
-                  <input id="f-lang-en" type="checkbox" ${rLangs.includes("en") ? "checked" : ""} /> 🇬🇧 English (<code>en</code>)
-                </label>
-              </div>
-            </div>
-            <div class="field">
-              <label>${t.lbl_id_icon}</label>
-              <div style="display:flex;gap:8px;">
-                <input id="f-id" type="text" value="${this._escape(this._isNewCarrier ? "" : this._selectedCarrierId)}" ${this._isNewCarrier ? "" : "readonly"} placeholder="e.g. sunlu" style="flex:1;" />
-                <input id="f-icon" type="text" value="${this._escape(r.icon || "mdi:package-variant-closed")}" placeholder="mdi:package-variant" style="flex:1;" />
-              </div>
-              <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;">
-                <input id="f-enabled" type="checkbox" ${r.enabled !== false ? "checked" : ""} /> ${t.lbl_enabled}
-              </label>
-            </div>
-
-            <div class="field">
-              <label>${t.lbl_sender}</label>
-              <input id="f-sender" type="text" value="${this._escape(this._listToStr(r.sender_patterns))}" placeholder="sunlu.com, dhl.de" />
-              <small>${t.hint_sender}</small>
-            </div>
-            <div class="field">
-              <label>${t.lbl_subject}</label>
-              <input id="f-subject" type="text" value="${this._escape(this._listToStr(r.subject_patterns))}" placeholder="${t.ph_subject}" />
-              <small>${t.hint_subject}</small>
-            </div>
-
-            <div class="field">
-              <label>${t.lbl_ordered}</label>
-              <input id="f-ordered" type="text" value="${this._escape(this._listToStr(r.ordered_patterns))}" />
-              <small>${t.hint_ordered}</small>
-            </div>
-            <div class="field">
-              <label>${t.lbl_transit}</label>
-              <input id="f-transit" type="text" value="${this._escape(this._listToStr(r.in_transit_patterns))}" />
-              <small>${t.hint_transit}</small>
-            </div>
-
-            <div class="field">
-              <label>${t.lbl_ofd}</label>
-              <input id="f-ofd" type="text" value="${this._escape(this._listToStr(r.out_for_delivery_patterns))}" />
-            </div>
-            <div class="field">
-              <label>${t.lbl_delivered}</label>
-              <input id="f-delivered" type="text" value="${this._escape(this._listToStr(r.delivered_patterns))}" />
-            </div>
-
-            <div class="field">
-              <label>${t.lbl_tomorrow}</label>
-              <input id="f-tomorrow" type="text" value="${this._escape(this._listToStr(r.tomorrow_patterns))}" />
-            </div>
-            <div class="field">
-              <label>${t.lbl_exclude}</label>
-              <input id="f-exclude" type="text" value="${this._escape(this._listToStr(r.exclude_patterns))}" />
-            </div>
-
-            <div class="field full">
-              <label>${t.lbl_tregex}</label>
-              <input id="f-tregex" type="text" value="${this._escape(r.tracking_regex || "")}" placeholder="DHL Trackingnummer:, Bestellung, Order #" />
-              <small>${t.hint_tregex}</small>
-            </div>
-
-            <div class="field full">
-              <label>${t.lbl_cregex}</label>
-              <input id="f-cregex" type="text" value="${this._escape(r.content_regex || "")}" placeholder="Artikel in dieser Lieferung, Bestellübersicht, *" />
-              <small>${t.hint_cregex}</small>
-            </div>
-
-            <div class="field">
-              <label>${t.lbl_uregex}</label>
-              <input id="f-uregex" type="text" value="${this._escape(r.tracking_url_regex || "")}" placeholder="dhl.de, myhermes.de, orders/" />
-              <small>${t.hint_uregex}</small>
-            </div>
-
-            <div class="field">
-              <label>${t.lbl_defurl}</label>
-              <input id="f-defurl" type="text" value="${this._escape(r.default_tracking_url || "")}" placeholder="https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}" />
-              <small>${t.hint_defurl}</small>
-            </div>
-          </div>
-        </div>
+        ${rightCardHtml}
       </div>
     `;
   }
@@ -1358,6 +1395,8 @@ class MailPackageTrackerPanel extends HTMLElement {
 
     root.querySelector("#btn-lang")?.addEventListener("click", () => {
       this._lang = this._currentLang() === "de" ? "en" : "de";
+      this._isNewCarrier = false;
+      this._jsonModalOpen = false;
       this._render();
     });
 
@@ -1392,8 +1431,14 @@ class MailPackageTrackerPanel extends HTMLElement {
       this._jsonModalOpen = false;
       this._render();
     });
+    root.querySelector("#btn-empty-new")?.addEventListener("click", () => {
+      this._isNewCarrier = true;
+      this._jsonModalOpen = false;
+      this._render();
+    });
 
     root.querySelector("#btn-import-new-json")?.addEventListener("click", () => this._openImportNewCarrierJson());
+    root.querySelector("#btn-empty-import")?.addEventListener("click", () => this._openImportNewCarrierJson());
     root.querySelector("#btn-import-overwrite-json")?.addEventListener("click", () => this._openOverwriteCarrierJson());
     root.querySelector("#btn-export-json")?.addEventListener("click", () => this._exportCarrierDirect());
     root.querySelector("#btn-json-close")?.addEventListener("click", () => {

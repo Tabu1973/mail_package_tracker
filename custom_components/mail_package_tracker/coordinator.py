@@ -109,8 +109,9 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         cid = str(raw.get("id") or json_file.stem).strip().lower()
                         raw["id"] = cid
                         raw["is_preset"] = True
-                        if "languages" not in raw or not isinstance(raw["languages"], list):
-                            raw["languages"] = ["de", "en"]
+                        lang = str(raw.get("language") or "de").strip().lower()
+                        raw["language"] = lang if lang in ("de", "en") else "de"
+                        raw.pop("languages", None)
                         presets[cid] = raw
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.warning("Skipping invalid carrier preset %s: %s", json_file.name, err)
@@ -129,12 +130,14 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     # Merge preset updates with user customizations
                     merged = copy.deepcopy(file_presets.get(cid, DEFAULT_CARRIERS.get(cid, {})))
                     merged.update(cdata)
-                    if not merged.get("languages"):
-                        merged["languages"] = file_presets.get(cid, {}).get("languages", ["de", "en"])
+                    merged.pop("languages", None)
+                    if merged.get("language") not in ("de", "en"):
+                        merged["language"] = file_presets.get(cid, {}).get("language", "de")
                     self.carriers[cid] = merged
                 else:
-                    if not cdata.get("languages"):
-                        cdata["languages"] = ["de", "en"]
+                    cdata.pop("languages", None)
+                    if cdata.get("language") not in ("de", "en"):
+                        cdata["language"] = "de"
                     self.carriers[cid] = cdata
 
             self.packages = stored.get("packages", {})

@@ -44,14 +44,15 @@ Automatic grouping by lifecycle stage (*In Transit & Out for Delivery*, *Ordered
 
 ## ✨ Key Features
 
-- **🌍 Full Bilingual Support (🇩🇪 German & 🇬🇧 English):**
-  - Available in **German (`de`)** and **English (`en`)** across the entire integration: setup wizard (Config & Options Flow), entities, Sidebar Panel UI (with automatic language detection plus a live **`🇩🇪 DE / 🇬🇧 EN`** toggle button), and bilingual filter keywords in all built-in carrier presets.
+- **🌍 Full Bilingual UI (🇩🇪 German & 🇬🇧 English) with Language-Separated Carrier Rules:**
+  - The entire UI (Setup Wizard, Entities, and Sidebar Panel with a live **`🇩🇪 DE / 🇬🇧 EN`** toggle button) is available in **German (`de`)** and **English (`en`)**.
+  - Carrier filter rules are cleanly separated by language (`"language": "de"` vs. `"language": "en"`): **8 tested German presets** are included out of the box under **`🇩🇪 DE`**, while **`🇬🇧 EN`** starts with a clean slate ready for your own or community-shared English `.json` carrier rules.
 - **🖥️ Built-in Sidebar Panel (`📦 Paket-Tracker` / `Package Tracker`) with Live Toggle:**
   - Toggle the sidebar entry on or off at any time using the **`Show in Sidebar`** switch (`switch.mail_package_tracker_ubersicht_in_seitenleiste_einblenden`)—no Home Assistant restart required.
   - Manage all **Carriers & Filter Rules**, add new shops, test real emails from your inbox with one click in the **🧪 Live Email Tester**, and manage active packages in a single clean interface.
-- **📥 / 📤 1-Click JSON Import & Export per Carrier (with Built-in Syntax & Schema Validator):**
-  - Export any carrier or shop rule as a standalone `.json` file (`📤 JSON Export`) or import community rules (`📥 JSON Import`) directly in the Sidebar Panel.
-  - Includes an automatic **JSON Syntax, Schema, Language (`"languages": ["de", "en"]`), and Regex Validator** so broken rules can never be imported accidentally.
+- **📥 / 📤 1-Click JSON Import & Export per Carrier (with Real-Time Syntax & Schema Validator):**
+  - Export any carrier rule with one click (`📤 JSON Export`), create a new carrier from JSON (`📥 New (JSON)`), or overwrite an existing carrier (`📥 JSON Import (Overwrite)`).
+  - Includes a real-time **JSON Syntax, Schema, Language (`"language": "de"` / `"en"`), and Regex Validator** so broken rules can never be imported accidentally.
 - **🔄 Full 4-Stage Package Lifecycle:**
   1. 🛒 **`Bestellt` (*Ordered – Awaiting Shipment*)** – Appears as soon as the order confirmation arrives.
   2. 🚚 **`Unterwegs` (*In Transit / Arriving Tomorrow*)** – Automatically upgrades when the shipping confirmation arrives.
@@ -203,9 +204,9 @@ Every carrier or online shop preset is stored as a standalone, human-readable `.
 
 ### How to Export, Validate & Share a Carrier Rule
 1. Open **📦 Paket-Tracker / Package Tracker** in your Home Assistant sidebar.
-2. Select your carrier/shop and click **`📤 JSON Export`** (or **`📥 JSON Import`** to load and validate a `.json` file from the community).
-3. Click **`🔍 Validate Syntax & Schema`** to verify that the JSON syntax, required fields, `languages` (`["de", "en"]`, `["de"]`, or `["en"]`), and regular expressions are valid.
-4. Download the `<carrier>.json` file and attach it to a GitHub **Issue** or submit a **Pull Request** adding it to [`custom_components/mail_package_tracker/carriers/`](custom_components/mail_package_tracker/carriers/)!
+2. Select your carrier/shop and click **`📤 JSON Export`** to download `<carrier>.json` (or use **`📥 New (JSON)`** / **`📥 JSON Import (Overwrite)`** to import & validate a `.json` file).
+3. The built-in validator automatically checks JSON syntax, required fields, `language` (`"de"` or `"en"`), and regular expressions in real time.
+4. Attach your `<carrier>.json` file to a GitHub **Issue** or submit a **Pull Request** adding it to [`custom_components/mail_package_tracker/carriers/`](custom_components/mail_package_tracker/carriers/)!
 
 ### Example Carrier JSON (`carriers/sunlu.json`)
 ```json
@@ -214,7 +215,7 @@ Every carrier or online shop preset is stored as a standalone, human-readable `.
   "id": "sunlu",
   "name": "Sunlu",
   "icon": "mdi:printer-3d-nozzle",
-  "languages": ["de", "en"],
+  "language": "de",
   "enabled": true,
   "sender_patterns": ["sunlu.com", "sunlu.de"],
   "subject_patterns": ["sunlu"],

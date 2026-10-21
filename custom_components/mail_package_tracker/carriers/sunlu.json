@@ -3,10 +3,7 @@
   "id": "sunlu",
   "name": "Sunlu",
   "icon": "mdi:printer-3d-nozzle",
-  "languages": [
-    "de",
-    "en"
-  ],
+  "language": "de",
   "enabled": true,
   "sender_patterns": [
     "sunlu.com",
@@ -60,8 +57,8 @@
     "tomorrow",
     "morgen"
   ],
-  "tracking_regex": "DHL Trackingnummer:, Trackingnummer:, Bestellung, Order #, Tracking number:",
+  "tracking_regex": "DHL Trackingnummer:, Trackingnummer:, Bestellung",
   "tracking_url_regex": "dhl.de, tracking.dpd.de, myhermes.de, orders/",
   "default_tracking_url": "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
-  "content_regex": "Artikel in dieser Lieferung, Bestellübersicht, Items in this shipment"
+  "content_regex": "Artikel in dieser Lieferung, Bestellübersicht"
 }

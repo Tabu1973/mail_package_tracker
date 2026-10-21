@@ -3,10 +3,7 @@
   "id": "dhl",
   "name": "DHL",
   "icon": "mdi:truck-delivery",
-  "languages": [
-    "de",
-    "en"
-  ],
+  "language": "de",
   "enabled": true,
   "sender_patterns": [
     "dhl.de",
@@ -17,15 +14,12 @@
   ],
   "subject_patterns": [
     "dhl paket",
-    "dhl sendung",
-    "dhl shipment",
-    "dhl parcel"
+    "dhl sendung"
   ],
   "exclude_patterns": [
     "newsletter",
     "werbung",
-    "kundenbefragung",
-    "survey"
+    "kundenbefragung"
   ],
   "ordered_patterns": [],
   "in_transit_patterns": [
@@ -34,10 +28,7 @@
     "auf dem weg",
     "wurde versandt",
     "in kürze",
-    "kommt am",
-    "in transit",
-    "on the way",
-    "shipment notification"
+    "kommt am"
   ],
   "out_for_delivery_patterns": [
     "in zustellung",
@@ -45,9 +36,7 @@
     "wird heute zugestellt",
     "zustellung heute",
     "heute zwischen",
-    "zur auslieferung",
-    "out for delivery",
-    "arriving today"
+    "zur auslieferung"
   ],
   "delivered_patterns": [
     "wurde zugestellt",
@@ -57,20 +46,16 @@
     "abholbereit",
     "wurde geliefert",
     "am wunschort",
-    "am ablageort",
-    "has been delivered",
-    "delivered"
+    "am ablageort"
   ],
   "tomorrow_patterns": [
     "kommt morgen",
     "voraussichtlich morgen",
     "zustellung morgen",
-    "lieferung morgen",
-    "arriving tomorrow",
-    "tomorrow"
+    "lieferung morgen"
   ],
   "tracking_regex": "(0034[0-9]{16}|[0-9]{12,20}|JJD[0-9]{10,20})",
   "tracking_url_regex": "(https://[^\\s\\\"'<]+dhl\\.[a-z.]+/[^\\s\\\"'<]*)",
   "default_tracking_url": "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
-  "content_regex": "(?:Sendung von|Paket von|Shipment from)\\s+([A-Za-z0-9ÄÖÜäöüß &._-]{2,35}?)(?:\\s+(?:mit|ist|wird|kommt|wurde|an|in|[0-9]{8})|[,.!\\n\\r\\\"<>]|$)"
+  "content_regex": "(?:Sendung von|Paket von)\\s+([A-Za-z0-9ÄÖÜäöüß &._-]{2,35}?)(?:\\s+(?:mit|ist|wird|kommt|wurde|an|in|[0-9]{8})|[,.!\\n\\r\\\"<>]|$)"
 }
