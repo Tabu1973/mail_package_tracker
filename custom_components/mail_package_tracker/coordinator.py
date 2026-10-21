@@ -34,6 +34,7 @@ from .const import (
     MODE_BOTH,
     MODE_IMAP,
     STATUS_DELIVERED,
+    STATUS_ORDERED,
     STATUS_RANK,
     STORAGE_KEY,
     STORAGE_VERSION,
@@ -443,6 +444,14 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _build_state_dict(self) -> dict[str, Any]:
         """Build summary state dictionary for sensors."""
         today_str = date.today().isoformat()
+        ordered = [
+            p for p in self.packages.values() if p.get("status") == STATUS_ORDERED
+        ]
+        in_transit = [
+            p
+            for p in self.packages.values()
+            if p.get("status") not in (STATUS_ORDERED, STATUS_DELIVERED)
+        ]
         expected = [
             p for p in self.packages.values() if p.get("status") != STATUS_DELIVERED
         ]
@@ -455,20 +464,17 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             p for p in self.packages.values() if p.get("status") == STATUS_DELIVERED
         ]
 
+        ordered_count = len(ordered)
+        transit_count = len(in_transit)
         exp_count = len(expected)
         del_today_count = len(delivered_today)
 
-        if exp_count > 0 and del_today_count > 0:
-            badge_state = f"{exp_count} erwartet • {del_today_count} geliefert"
-        elif exp_count > 0:
-            badge_state = f"{exp_count} erwartet"
-        elif del_today_count > 0:
-            badge_state = f"{del_today_count} geliefert"
-        else:
-            badge_state = "Keine"
+        badge_state = f"Pakete {ordered_count}/{transit_count}/{del_today_count}"
 
         return {
             "badge_state": badge_state,
+            "ordered_count": ordered_count,
+            "in_transit_count": transit_count,
             "expected_count": exp_count,
             "delivered_today_count": del_today_count,
             "delivered_total_count": len(delivered_all),
