@@ -24,6 +24,24 @@
 
 ---
 
+## 📸 Screenshots
+
+### 🖥️ Built-in Sidebar Panel (`📦 Paket-Tracker`)
+Manage all carriers, customize plain-text filter rules, test live emails from your inbox, and inspect active packages directly from the Home Assistant sidebar:
+
+<p align="center">
+  <img src="docs/screenshots/sidebar_panel.png" alt="Mail Package Tracker Sidebar Panel" width="95%" />
+</p>
+
+### 📱 Example Package Dashboard
+Automatic grouping by lifecycle stage (*In Transit & Out for Delivery*, *Ordered – Awaiting Shipment*, *Delivered Today*, and *Previous Deliveries*):
+
+<p align="center">
+  <img src="docs/screenshots/dashboard.png" alt="Mail Package Tracker Dashboard" width="520" />
+</p>
+
+---
+
 ## ✨ Key Features
 
 - **🖥️ Built-in Sidebar Panel (`📦 Paket-Tracker`) with Live Toggle:**
