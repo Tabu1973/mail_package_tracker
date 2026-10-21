@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import copy
 from datetime import date, datetime, timedelta
+import json
 import logging
+from pathlib import Path
 from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
@@ -94,18 +96,45 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return self.entry.options[key]
         return self.entry.data.get(key, default)
 
+    @staticmethod
+    def _load_carrier_preset_files() -> dict[str, dict[str, Any]]:
+        """Load carrier JSON files from the carriers/ directory."""
+        presets = copy.deepcopy(DEFAULT_CARRIERS)
+        carriers_dir = Path(__file__).parent / "carriers"
+        if carriers_dir.is_dir():
+            for json_file in sorted(carriers_dir.glob("*.json")):
+                try:
+                    raw = json.loads(json_file.read_text(encoding="utf-8"))
+                    if isinstance(raw, dict) and raw.get("name"):
+                        cid = str(raw.get("id") or json_file.stem).strip().lower()
+                        raw["id"] = cid
+                        raw["is_preset"] = True
+                        if "languages" not in raw or not isinstance(raw["languages"], list):
+                            raw["languages"] = ["de", "en"]
+                        presets[cid] = raw
+                except Exception as err:  # noqa: BLE001
+                    _LOGGER.warning("Skipping invalid carrier preset %s: %s", json_file.name, err)
+        return presets
+
     async def async_load_storage(self) -> None:
         """Load persisted packages, custom carrier rules, and recent emails."""
+        file_presets = await self.hass.async_add_executor_job(self._load_carrier_preset_files)
+        self.carriers = copy.deepcopy(file_presets)
+
         stored = await self.store.async_load()
         if isinstance(stored, dict):
             stored_carriers = stored.get("carriers", {})
             for cid, cdata in stored_carriers.items():
                 if cid in self.carriers and self.carriers[cid].get("is_preset"):
                     # Merge preset updates with user customizations
-                    merged = copy.deepcopy(DEFAULT_CARRIERS[cid])
+                    merged = copy.deepcopy(file_presets.get(cid, DEFAULT_CARRIERS.get(cid, {})))
                     merged.update(cdata)
+                    if not merged.get("languages"):
+                        merged["languages"] = file_presets.get(cid, {}).get("languages", ["de", "en"])
                     self.carriers[cid] = merged
                 else:
+                    if not cdata.get("languages"):
+                        cdata["languages"] = ["de", "en"]
                     self.carriers[cid] = cdata
 
             self.packages = stored.get("packages", {})

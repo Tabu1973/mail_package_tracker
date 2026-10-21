@@ -65,6 +65,22 @@ const I18N = {
     toast_applied: "✅ E-Mail als Paket übernommen!",
     toast_removed: "🗑️ Paket entfernt.",
     confirm_delete: (n) => `Lieferant "${n}" wirklich löschen?`,
+    btn_import_json: "📥 JSON Import",
+    btn_export_json: "📤 JSON Export",
+    lbl_languages: "🌐 Unterstützte Sprachen (im JSON)",
+    json_modal_export_title: (n) => `📤 JSON-Export: ${n}`,
+    json_modal_import_title: "📥 Lieferant / Paketdienst per JSON importieren & prüfen",
+    json_modal_desc: "Teile diesen Lieferanten als .json-Datei mit der Community oder füge hier ein JSON ein. Vor dem Import werden JSON-Syntax, Pflichtfelder, Sprachen (de/en) und reguläre Ausdrücke automatisch geprüft.",
+    btn_upload_file: "📂 .json-Datei auswählen",
+    btn_download_file: "💾 Als .json-Datei herunterladen",
+    btn_copy_json: "📋 JSON kopieren",
+    btn_validate_json: "🔍 Syntax & Schema prüfen",
+    btn_apply_json: "📥 Lieferant importieren & speichern",
+    btn_close: "✖ Schließen",
+    val_ok_title: "✅ JSON-Syntax & Schema sind gültig!",
+    val_err_title: "❌ JSON-Prüfung fehlgeschlagen:",
+    toast_copied: "📋 JSON in die Zwischenablage kopiert!",
+    toast_imported: (n) => `✅ Lieferant "${n}" erfolgreich aus JSON importiert!`,
   },
   en: {
     subtitle: (c, p) => `${c} Carriers • ${p} Stored Packages`,
@@ -132,6 +148,22 @@ const I18N = {
     toast_applied: "✅ Email imported as package!",
     toast_removed: "🗑️ Package removed.",
     confirm_delete: (n) => `Really delete carrier "${n}"?`,
+    btn_import_json: "📥 JSON Import",
+    btn_export_json: "📤 JSON Export",
+    lbl_languages: "🌐 Supported Languages (in JSON)",
+    json_modal_export_title: (n) => `📤 JSON Export: ${n}`,
+    json_modal_import_title: "📥 Import & Validate Carrier / Shop JSON",
+    json_modal_desc: "Share this carrier rule as a .json file with the community or paste a JSON rule below. JSON syntax, required fields, languages (de/en), and regular expressions are validated automatically before import.",
+    btn_upload_file: "📂 Choose .json File",
+    btn_download_file: "💾 Download .json File",
+    btn_copy_json: "📋 Copy JSON",
+    btn_validate_json: "🔍 Validate Syntax & Schema",
+    btn_apply_json: "📥 Import & Save Carrier",
+    btn_close: "✖ Close",
+    val_ok_title: "✅ JSON Syntax & Schema Valid!",
+    val_err_title: "❌ JSON Validation Failed:",
+    toast_copied: "📋 JSON copied to clipboard!",
+    toast_imported: (n) => `✅ Carrier "${n}" successfully imported from JSON!`,
   },
 };
 
@@ -148,6 +180,10 @@ class MailPackageTrackerPanel extends HTMLElement {
     this._recentEmails = [];
     this._selectedCarrierId = null;
     this._isNewCarrier = false;
+    this._jsonModalOpen = false;
+    this._jsonModalMode = "import";
+    this._jsonModalText = "";
+    this._jsonValidation = null;
     this._testResult = null;
     this._statusMsg = "";
     this._loading = false;
@@ -229,14 +265,21 @@ class MailPackageTrackerPanel extends HTMLElement {
       .replace(/"/g, "&quot;");
   }
 
-  async _saveCarrier() {
-    const t = this._t();
+  _readFormRule() {
     const root = this.shadowRoot;
     const name = root.querySelector("#f-name")?.value.trim() || "New Carrier";
     const idInput = root.querySelector("#f-id")?.value.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "_");
-    const rule = {
+    const langs = [];
+    if (root.querySelector("#f-lang-de")?.checked) langs.push("de");
+    if (root.querySelector("#f-lang-en")?.checked) langs.push("en");
+    if (langs.length === 0) langs.push("de", "en");
+
+    return {
+      schema_version: 1,
+      id: idInput,
       name,
       icon: root.querySelector("#f-icon")?.value.trim() || "mdi:package-variant-closed",
+      languages: langs,
       enabled: root.querySelector("#f-enabled")?.checked ?? true,
       sender_patterns: this._strToList(root.querySelector("#f-sender")?.value),
       subject_patterns: this._strToList(root.querySelector("#f-subject")?.value),
@@ -251,11 +294,15 @@ class MailPackageTrackerPanel extends HTMLElement {
       tracking_url_regex: root.querySelector("#f-uregex")?.value.trim() || "",
       default_tracking_url: root.querySelector("#f-defurl")?.value.trim() || "",
     };
+  }
 
+  async _saveCarrier() {
+    const t = this._t();
+    const rule = this._readFormRule();
     try {
       const res = await this._hass.callWS({
         type: "mail_package_tracker/save_carrier",
-        carrier_id: idInput,
+        carrier_id: rule.id,
         rule,
         rescan: true,
       });
@@ -264,10 +311,140 @@ class MailPackageTrackerPanel extends HTMLElement {
       this._selectedCarrierId = res.carrier_id;
       this._isNewCarrier = false;
       this._render();
-      this._showToast(t.toast_saved(name));
+      this._showToast(t.toast_saved(rule.name));
     } catch (err) {
       this._showToast("❌ " + (err.message || err));
     }
+  }
+
+  _openExportJson() {
+    const rule = this._readFormRule();
+    this._jsonModalMode = "export";
+    this._jsonModalText = JSON.stringify(rule, null, 2);
+    this._jsonValidation = null;
+    this._jsonModalOpen = true;
+    this._render();
+    this._validateOrImportJson(false);
+  }
+
+  _openImportJson() {
+    const sample = {
+      schema_version: 1,
+      id: "mein_shop",
+      name: "Mein Shop",
+      icon: "mdi:package-variant-closed",
+      languages: ["de", "en"],
+      enabled: true,
+      sender_patterns: ["mein-shop.de"],
+      subject_patterns: [],
+      ordered_patterns: ["bestellbestätigung", "order confirmed"],
+      in_transit_patterns: ["wurde versandt", "shipped", "unterwegs"],
+      out_for_delivery_patterns: ["in zustellung", "out for delivery"],
+      delivered_patterns: ["zugestellt", "geliefert", "delivered"],
+      tomorrow_patterns: ["morgen", "tomorrow"],
+      exclude_patterns: ["newsletter", "storniert", "cancelled"],
+      tracking_regex: "Trackingnummer:, Bestellung, Order #",
+      content_regex: "Artikel in dieser Lieferung, Bestellübersicht, *",
+      tracking_url_regex: "dhl.de, tracking.dpd.de, myhermes.de",
+      default_tracking_url: "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
+    };
+    this._jsonModalMode = "import";
+    this._jsonModalText = JSON.stringify(sample, null, 2);
+    this._jsonValidation = null;
+    this._jsonModalOpen = true;
+    this._render();
+  }
+
+  async _validateOrImportJson(apply = false) {
+    const t = this._t();
+    const ta = this.shadowRoot?.querySelector("#json-modal-textarea");
+    if (ta) {
+      this._jsonModalText = ta.value;
+    }
+    try {
+      const res = await this._hass.callWS({
+        type: "mail_package_tracker/import_carrier_json",
+        raw_json: this._jsonModalText,
+        apply,
+      });
+      this._jsonValidation = res;
+      if (apply && res.valid && res.imported) {
+        this._carriers = res.carriers || this._carriers;
+        this._packages = res.packages || this._packages;
+        this._selectedCarrierId = res.carrier_id;
+        this._isNewCarrier = false;
+        this._jsonModalOpen = false;
+        this._render();
+        this._showToast(t.toast_imported(res.normalized?.name || res.carrier_id));
+        return;
+      }
+      this._renderJsonValidationOnly();
+    } catch (err) {
+      this._showToast("❌ " + (err.message || err));
+    }
+  }
+
+  _downloadCurrentJson() {
+    const ta = this.shadowRoot?.querySelector("#json-modal-textarea");
+    const raw = ta ? ta.value : this._jsonModalText;
+    let cid = this._selectedCarrierId || "carrier";
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.id) cid = parsed.id;
+    } catch (_) {}
+    const blob = new Blob([raw], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${cid}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async _copyCurrentJson() {
+    const t = this._t();
+    const ta = this.shadowRoot?.querySelector("#json-modal-textarea");
+    const raw = ta ? ta.value : this._jsonModalText;
+    try {
+      await navigator.clipboard.writeText(raw);
+      this._showToast(t.toast_copied);
+    } catch (_) {
+      if (ta) {
+        ta.select();
+        document.execCommand("copy");
+        this._showToast(t.toast_copied);
+      }
+    }
+  }
+
+  _renderJsonValidationOnly() {
+    const t = this._t();
+    const box = this.shadowRoot?.querySelector("#json-val-box");
+    if (!box || !this._jsonValidation) return;
+    const v = this._jsonValidation;
+    if (!v.valid) {
+      const errs = (v.errors || []).map((e) => `<li>${this._escape(e)}</li>`).join("");
+      box.innerHTML = `
+        <div class="res-card res-fail" style="margin-top:10px;">
+          <strong style="font-size:13px;">${t.val_err_title}</strong>
+          <ul style="margin:6px 0 0 18px;font-size:12px;">${errs}</ul>
+        </div>
+      `;
+      return;
+    }
+    const n = v.normalized || {};
+    const langs = (n.languages || []).map((l) => (l === "de" ? "🇩🇪 DE" : "🇬🇧 EN")).join(", ");
+    box.innerHTML = `
+      <div class="res-card res-ok" style="margin-top:10px;">
+        <strong style="font-size:13px;">${t.val_ok_title}</strong>
+        <div style="font-size:12px;margin-top:6px;">
+          ID: <code>${this._escape(n.id)}</code> •
+          Name: <strong>${this._escape(n.name)}</strong> •
+          Languages: <strong>${this._escape(langs)}</strong> •
+          Senders: <code>${this._escape((n.sender_patterns || []).join(", "))}</code>
+        </div>
+      </div>
+    `;
   }
 
   async _toggleCarrierQuick(cid, enabled) {
@@ -699,14 +876,19 @@ class MailPackageTrackerPanel extends HTMLElement {
   }
 
   _renderCarriersTab(cList, r, t) {
+    const rLangs = Array.isArray(r.languages) && r.languages.length ? r.languages : ["de", "en"];
     const itemsHtml = cList
       .map(([cid, c]) => {
         const sel = !this._isNewCarrier && cid === this._selectedCarrierId ? "selected" : "";
         const senders = (c.sender_patterns || []).slice(0, 2).join(", ");
+        const clangs = Array.isArray(c.languages) && c.languages.length ? c.languages : ["de", "en"];
+        const langBadges = clangs
+          .map((l) => `<span style="font-size:10px;opacity:0.85;margin-left:4px;">${l === "de" ? "🇩🇪" : "🇬🇧"}</span>`)
+          .join("");
         return `
           <div class="carrier-item ${sel}" data-cid="${this._escape(cid)}">
             <div>
-              <div class="carrier-name">${this._escape(c.name || cid)}</div>
+              <div class="carrier-name">${this._escape(c.name || cid)} ${langBadges}</div>
               <div class="carrier-sub">${this._escape(senders)}</div>
             </div>
             <input type="checkbox" class="carrier-toggle" data-cid="${this._escape(cid)}" ${c.enabled !== false ? "checked" : ""} />
@@ -715,12 +897,40 @@ class MailPackageTrackerPanel extends HTMLElement {
       })
       .join("");
 
+    const jsonBoxHtml = this._jsonModalOpen
+      ? `
+        <div class="card" style="margin-bottom:18px;border:1px solid var(--primary-color, #03a9f4);">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+            <h3 style="margin:0;font-size:16px;">
+              ${this._jsonModalMode === "export" ? t.json_modal_export_title(this._escape(r.name || this._selectedCarrierId)) : t.json_modal_import_title}
+            </h3>
+            <button id="btn-json-close" class="btn btn-sec" style="padding:5px 10px;font-size:12px;">${t.btn_close}</button>
+          </div>
+          <p style="margin:0 0 10px 0;font-size:12px;color:var(--secondary-text-color);">${t.json_modal_desc}</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+            <input id="json-file-input" type="file" accept=".json,application/json" style="display:none;" />
+            <button id="btn-json-upload" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_upload_file}</button>
+            <button id="btn-json-download" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_download_file}</button>
+            <button id="btn-json-copy" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_copy_json}</button>
+            <button id="btn-json-validate" class="btn btn-sec" style="padding:7px 12px;font-size:12px;">${t.btn_validate_json}</button>
+            <button id="btn-json-apply" class="btn" style="padding:7px 14px;font-size:12px;">${t.btn_apply_json}</button>
+          </div>
+          <textarea id="json-modal-textarea" style="font-family:monospace;font-size:12px;min-height:220px;">${this._escape(this._jsonModalText)}</textarea>
+          <div id="json-val-box"></div>
+        </div>
+      `
+      : "";
+
     return `
+      ${jsonBoxHtml}
       <div class="layout-split">
         <div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:6px;flex-wrap:wrap;">
             <strong style="font-size:15px;">${t.carriers_title}</strong>
-            <button id="btn-new-carrier" class="btn" style="padding:6px 12px;font-size:12px;">${t.btn_new}</button>
+            <div style="display:flex;gap:6px;">
+              <button id="btn-import-json" class="btn btn-sec" style="padding:6px 10px;font-size:12px;">${t.btn_import_json}</button>
+              <button id="btn-new-carrier" class="btn" style="padding:6px 12px;font-size:12px;">${t.btn_new}</button>
+            </div>
           </div>
           ${itemsHtml}
         </div>
@@ -730,7 +940,8 @@ class MailPackageTrackerPanel extends HTMLElement {
             <h2 style="margin:0;font-size:18px;">
               ${this._isNewCarrier ? t.new_carrier_title : t.edit_carrier_title(this._escape(r.name || this._selectedCarrierId))}
             </h2>
-            <div style="display:flex;gap:8px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button id="btn-export-json" class="btn btn-sec">${t.btn_export_json}</button>
               ${!this._isNewCarrier && this._selectedCarrierId ? `<button id="btn-del-carrier" class="btn btn-danger">${t.btn_delete}</button>` : ""}
               <button id="btn-save-carrier" class="btn">${t.btn_save}</button>
             </div>
@@ -740,6 +951,15 @@ class MailPackageTrackerPanel extends HTMLElement {
             <div class="field">
               <label>${t.lbl_name}</label>
               <input id="f-name" type="text" value="${this._escape(r.name || "")}" placeholder="${t.ph_name}" />
+              <div style="display:flex;align-items:center;gap:14px;margin-top:6px;flex-wrap:wrap;">
+                <span style="font-size:12px;color:var(--secondary-text-color);font-weight:600;">${t.lbl_languages}:</span>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+                  <input id="f-lang-de" type="checkbox" ${rLangs.includes("de") ? "checked" : ""} /> 🇩🇪 Deutsch (<code>de</code>)
+                </label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:12px;">
+                  <input id="f-lang-en" type="checkbox" ${rLangs.includes("en") ? "checked" : ""} /> 🇬🇧 English (<code>en</code>)
+                </label>
+              </div>
             </div>
             <div class="field">
               <label>${t.lbl_id_icon}</label>
@@ -747,7 +967,7 @@ class MailPackageTrackerPanel extends HTMLElement {
                 <input id="f-id" type="text" value="${this._escape(this._isNewCarrier ? "" : this._selectedCarrierId)}" ${this._isNewCarrier ? "" : "readonly"} placeholder="e.g. sunlu" style="flex:1;" />
                 <input id="f-icon" type="text" value="${this._escape(r.icon || "mdi:package-variant-closed")}" placeholder="mdi:package-variant" style="flex:1;" />
               </div>
-              <label style="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer;">
+              <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer;">
                 <input id="f-enabled" type="checkbox" ${r.enabled !== false ? "checked" : ""} /> ${t.lbl_enabled}
               </label>
             </div>
@@ -939,6 +1159,36 @@ class MailPackageTrackerPanel extends HTMLElement {
       this._isNewCarrier = true;
       this._render();
     });
+
+    root.querySelector("#btn-import-json")?.addEventListener("click", () => this._openImportJson());
+    root.querySelector("#btn-export-json")?.addEventListener("click", () => this._openExportJson());
+    root.querySelector("#btn-json-close")?.addEventListener("click", () => {
+      this._jsonModalOpen = false;
+      this._render();
+    });
+    root.querySelector("#btn-json-upload")?.addEventListener("click", () => {
+      root.querySelector("#json-file-input")?.click();
+    });
+    root.querySelector("#json-file-input")?.addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        this._jsonModalText = String(reader.result || "");
+        const ta = root.querySelector("#json-modal-textarea");
+        if (ta) ta.value = this._jsonModalText;
+        this._validateOrImportJson(false);
+      };
+      reader.readAsText(file, "utf-8");
+    });
+    root.querySelector("#btn-json-download")?.addEventListener("click", () => this._downloadCurrentJson());
+    root.querySelector("#btn-json-copy")?.addEventListener("click", () => this._copyCurrentJson());
+    root.querySelector("#btn-json-validate")?.addEventListener("click", () => this._validateOrImportJson(false));
+    root.querySelector("#btn-json-apply")?.addEventListener("click", () => this._validateOrImportJson(true));
+
+    if (this._jsonModalOpen && this._jsonValidation) {
+      this._renderJsonValidationOnly();
+    }
 
     root.querySelector("#btn-save-carrier")?.addEventListener("click", () => this._saveCarrier());
 

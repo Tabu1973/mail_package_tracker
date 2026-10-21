@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "id": "gls",
+  "name": "GLS",
+  "icon": "mdi:truck",
+  "languages": [
+    "de",
+    "en"
+  ],
+  "enabled": true,
+  "sender_patterns": [
+    "gls-group.com",
+    "gls-germany.com",
+    "gls-pakete.de",
+    "gls-group.eu"
+  ],
+  "subject_patterns": [
+    "gls paket",
+    "gls sendung",
+    "gls parcel"
+  ],
+  "exclude_patterns": [
+    "newsletter"
+  ],
+  "ordered_patterns": [],
+  "in_transit_patterns": [
+    "ist unterwegs",
+    "auf dem weg",
+    "paketankündigung",
+    "in transit",
+    "on its way"
+  ],
+  "out_for_delivery_patterns": [
+    "in zustellung",
+    "kommt heute",
+    "heute zwischen",
+    "out for delivery"
+  ],
+  "delivered_patterns": [
+    "wurde zugestellt",
+    "im gls paketshop",
+    "zugestellt",
+    "has been delivered",
+    "delivered"
+  ],
+  "tomorrow_patterns": [
+    "kommt morgen",
+    "voraussichtlich morgen",
+    "tomorrow"
+  ],
+  "tracking_regex": "([0-9]{11,12}|[A-Z0-9]{8})",
+  "tracking_url_regex": "(https://[^\\s\\\"'<]+gls-[a-z.]+\\.[a-z]+/[^\\s\\\"'<]*)",
+  "default_tracking_url": "https://www.gls-pakete.de/sendungsverfolgung?match={tracking_id}",
+  "content_regex": ""
+}

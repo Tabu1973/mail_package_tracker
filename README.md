@@ -44,9 +44,14 @@ Automatic grouping by lifecycle stage (*In Transit & Out for Delivery*, *Ordered
 
 ## ✨ Key Features
 
-- **🖥️ Built-in Sidebar Panel (`📦 Paket-Tracker`) with Live Toggle:**
+- **🌍 Full Bilingual Support (🇩🇪 German & 🇬🇧 English):**
+  - Available in **German (`de`)** and **English (`en`)** across the entire integration: setup wizard (Config & Options Flow), entities, Sidebar Panel UI (with automatic language detection plus a live **`🇩🇪 DE / 🇬🇧 EN`** toggle button), and bilingual filter keywords in all built-in carrier presets.
+- **🖥️ Built-in Sidebar Panel (`📦 Paket-Tracker` / `Package Tracker`) with Live Toggle:**
   - Toggle the sidebar entry on or off at any time using the **`Show in Sidebar`** switch (`switch.mail_package_tracker_ubersicht_in_seitenleiste_einblenden`)—no Home Assistant restart required.
   - Manage all **Carriers & Filter Rules**, add new shops, test real emails from your inbox with one click in the **🧪 Live Email Tester**, and manage active packages in a single clean interface.
+- **📥 / 📤 1-Click JSON Import & Export per Carrier (with Built-in Syntax & Schema Validator):**
+  - Export any carrier or shop rule as a standalone `.json` file (`📤 JSON Export`) or import community rules (`📥 JSON Import`) directly in the Sidebar Panel.
+  - Includes an automatic **JSON Syntax, Schema, Language (`"languages": ["de", "en"]`), and Regex Validator** so broken rules can never be imported accidentally.
 - **🔄 Full 4-Stage Package Lifecycle:**
   1. 🛒 **`Bestellt` (*Ordered – Awaiting Shipment*)** – Appears as soon as the order confirmation arrives.
   2. 🚚 **`Unterwegs` (*In Transit / Arriving Tomorrow*)** – Automatically upgrades when the shipping confirmation arrives.
@@ -192,11 +197,64 @@ filter:
 
 ---
 
-## 🤝 Contributing & Adding More Carriers / Shops
+## 🤝 Sharing & Contributing Carrier Rules via JSON (`carriers/*.json`)
 
-Because every online shop and parcel carrier formats its notification emails slightly differently, community contributions are very welcome!
-- Created a working filter rule for another shop or carrier (e.g., *Otto, Zalando, eBay, Mindfactory, Bambu Lab, Prusa, FedEx, USPS, Royal Mail, Post AT / CH*)?
-- Open an **Issue** or submit a **Pull Request** with your filter keywords (or an anonymized sample email) so we can include it in the default presets in [`const.py`](custom_components/mail_package_tracker/const.py)!
+Every carrier or online shop preset is stored as a standalone, human-readable `.json` file in [`custom_components/mail_package_tracker/carriers/`](custom_components/mail_package_tracker/carriers/).
+
+### How to Export, Validate & Share a Carrier Rule
+1. Open **📦 Paket-Tracker / Package Tracker** in your Home Assistant sidebar.
+2. Select your carrier/shop and click **`📤 JSON Export`** (or **`📥 JSON Import`** to load and validate a `.json` file from the community).
+3. Click **`🔍 Validate Syntax & Schema`** to verify that the JSON syntax, required fields, `languages` (`["de", "en"]`, `["de"]`, or `["en"]`), and regular expressions are valid.
+4. Download the `<carrier>.json` file and attach it to a GitHub **Issue** or submit a **Pull Request** adding it to [`custom_components/mail_package_tracker/carriers/`](custom_components/mail_package_tracker/carriers/)!
+
+### Example Carrier JSON (`carriers/sunlu.json`)
+```json
+{
+  "schema_version": 1,
+  "id": "sunlu",
+  "name": "Sunlu",
+  "icon": "mdi:printer-3d-nozzle",
+  "languages": ["de", "en"],
+  "enabled": true,
+  "sender_patterns": ["sunlu.com", "sunlu.de"],
+  "subject_patterns": ["sunlu"],
+  "ordered_patterns": [
+    "bestätigt",
+    "vielen dank für deinen einkauf",
+    "thank you for your purchase",
+    "order confirmed",
+    "bestellbestätigung"
+  ],
+  "in_transit_patterns": [
+    "on the way",
+    "has been shipped",
+    "shipped",
+    "fulfilled",
+    "shipment from order",
+    "auf dem weg",
+    "wurde versandt",
+    "unterwegs"
+  ],
+  "out_for_delivery_patterns": [
+    "out for delivery",
+    "in zustellung",
+    "arriving today",
+    "kommt heute"
+  ],
+  "delivered_patterns": [
+    "has been delivered",
+    "delivered",
+    "wurde zugestellt",
+    "wurde geliefert"
+  ],
+  "tomorrow_patterns": ["tomorrow", "morgen"],
+  "exclude_patterns": ["newsletter", "discount", "sale"],
+  "tracking_regex": "DHL Trackingnummer:, Trackingnummer:, Bestellung, Order #, Tracking number:",
+  "content_regex": "Artikel in dieser Lieferung, Bestellübersicht, Items in this shipment",
+  "tracking_url_regex": "dhl.de, tracking.dpd.de, myhermes.de, orders/",
+  "default_tracking_url": "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}"
+}
+```
 
 ---
 

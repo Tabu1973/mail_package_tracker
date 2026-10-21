@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "id": "hermes",
+  "name": "Hermes / Evri",
+  "icon": "mdi:package-variant-closed",
+  "languages": [
+    "de",
+    "en"
+  ],
+  "enabled": true,
+  "sender_patterns": [
+    "myhermes.de",
+    "hermesworld.com",
+    "hermes-world.com",
+    "hermes.de",
+    "evri.com"
+  ],
+  "subject_patterns": [
+    "hermes sendung",
+    "hermes paket",
+    "hermes parcel",
+    "evri parcel"
+  ],
+  "exclude_patterns": [
+    "newsletter"
+  ],
+  "ordered_patterns": [],
+  "in_transit_patterns": [
+    "ist unterwegs",
+    "auf dem weg",
+    "angekündigt",
+    "sendungsstatus",
+    "on its way",
+    "in transit"
+  ],
+  "out_for_delivery_patterns": [
+    "in zustellung",
+    "kommt heute",
+    "heute zugestellt",
+    "zustellung heute",
+    "out for delivery"
+  ],
+  "delivered_patterns": [
+    "wurde zugestellt",
+    "erfolgreich zugestellt",
+    "im paketshop",
+    "abholbereit",
+    "has been delivered",
+    "delivered"
+  ],
+  "tomorrow_patterns": [
+    "kommt morgen",
+    "voraussichtlich morgen",
+    "tomorrow"
+  ],
+  "tracking_regex": "(H[0-9]{19}|[0-9]{14})",
+  "tracking_url_regex": "(https://[^\\s\\\"'<]+(?:myhermes\\.de|evri\\.com)/[^\\s\\\"'<]*)",
+  "default_tracking_url": "https://www.myhermes.de/empfangen/sendungsverfolgung/suchen/sendungsinformation/{tracking_id}",
+  "content_regex": "(?:Sendung von|von|Parcel from)\\s+([^\\n\\r\\\"<>]+)"
+}

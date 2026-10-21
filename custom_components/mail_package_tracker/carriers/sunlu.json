@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "id": "sunlu",
+  "name": "Sunlu",
+  "icon": "mdi:printer-3d-nozzle",
+  "languages": [
+    "de",
+    "en"
+  ],
+  "enabled": true,
+  "sender_patterns": [
+    "sunlu.com",
+    "sunlu.de"
+  ],
+  "subject_patterns": [
+    "sunlu"
+  ],
+  "exclude_patterns": [
+    "newsletter",
+    "discount",
+    "sale",
+    "welcome to sunlu",
+    "cart is ready",
+    "dein code lautet",
+    "is your code",
+    "punkte verdient"
+  ],
+  "ordered_patterns": [
+    "bestätigt",
+    "vielen dank für deinen einkauf",
+    "thank you for your purchase",
+    "order confirmed",
+    "bestellbestätigung"
+  ],
+  "in_transit_patterns": [
+    "on the way",
+    "has been shipped",
+    "shipped",
+    "fulfilled",
+    "shipment from order",
+    "auf dem weg",
+    "wurde versandt",
+    "wurde verschickt",
+    "unterwegs",
+    "tracking"
+  ],
+  "out_for_delivery_patterns": [
+    "out for delivery",
+    "in zustellung",
+    "arriving today",
+    "kommt heute"
+  ],
+  "delivered_patterns": [
+    "has been delivered",
+    "delivered",
+    "wurde zugestellt",
+    "wurde geliefert"
+  ],
+  "tomorrow_patterns": [
+    "tomorrow",
+    "morgen"
+  ],
+  "tracking_regex": "DHL Trackingnummer:, Trackingnummer:, Bestellung, Order #, Tracking number:",
+  "tracking_url_regex": "dhl.de, tracking.dpd.de, myhermes.de, orders/",
+  "default_tracking_url": "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
+  "content_regex": "Artikel in dieser Lieferung, Bestellübersicht, Items in this shipment"
+}

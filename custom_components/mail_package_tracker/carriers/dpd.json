@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "id": "dpd",
+  "name": "DPD",
+  "icon": "mdi:cube-send",
+  "languages": [
+    "de",
+    "en"
+  ],
+  "enabled": true,
+  "sender_patterns": [
+    "dpd.de",
+    "dpd.com",
+    "dpdgroup.com",
+    "dpd.co.uk"
+  ],
+  "subject_patterns": [
+    "dpd paket",
+    "ihr dpd",
+    "dpd parcel",
+    "your dpd"
+  ],
+  "exclude_patterns": [
+    "newsletter",
+    "bewertung",
+    "feedback"
+  ],
+  "ordered_patterns": [],
+  "in_transit_patterns": [
+    "baldige zustellung",
+    "ist unterwegs",
+    "auf dem weg",
+    "paketankündigung",
+    "on its way",
+    "in transit"
+  ],
+  "out_for_delivery_patterns": [
+    "heute zugestellt",
+    "kommt heute",
+    "in zustellung",
+    "zustellung heute",
+    "out for delivery",
+    "delivering today"
+  ],
+  "delivered_patterns": [
+    "wurde zugestellt",
+    "erfolgreich zugestellt",
+    "abgestellt",
+    "im pickup paketshop",
+    "abholbereit",
+    "has been delivered",
+    "delivered"
+  ],
+  "tomorrow_patterns": [
+    "kommt morgen",
+    "zustellung morgen",
+    "morgen zwischen",
+    "tomorrow"
+  ],
+  "tracking_regex": "([0-9]{14})",
+  "tracking_url_regex": "(https://[^\\s\\\"'<]+dpd\\.[a-z.]+/[^\\s\\\"'<]*)",
+  "default_tracking_url": "https://tracking.dpd.de/status/de_DE/parcel/{tracking_id}",
+  "content_regex": "(?:Sendung von|Paket von|Parcel from)\\s+([A-Za-z0-9ÄÖÜäöüß &._-]{2,35}?)(?:\\s+(?:mit|ist|wird|kommt|wurde|an|in|[0-9]{8})|[,.!\\n\\r\\\"<>]|$)"
+}

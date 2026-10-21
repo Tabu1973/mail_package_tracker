@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "id": "aliexpress",
+  "name": "AliExpress",
+  "icon": "mdi:shopping",
+  "languages": [
+    "de",
+    "en"
+  ],
+  "enabled": true,
+  "sender_patterns": [
+    "aliexpress.com"
+  ],
+  "subject_patterns": [
+    "aliexpress",
+    "goodcang",
+    "parel"
+  ],
+  "exclude_patterns": [
+    "promotion",
+    "sale",
+    "rabatt"
+  ],
+  "ordered_patterns": [
+    "zahlung bestätigt",
+    "payment confirmed",
+    "bestellung bestätigt",
+    "order confirmed"
+  ],
+  "in_transit_patterns": [
+    "wurde versandt",
+    "shipped",
+    "unterwegs",
+    "im zielland angekommen",
+    "transit"
+  ],
+  "out_for_delivery_patterns": [
+    "in zustellung",
+    "out for delivery",
+    "zur auslieferung bereit"
+  ],
+  "delivered_patterns": [
+    "wurde zugestellt",
+    "wurde geliefert",
+    "erfolgreich zugestellt",
+    "package delivered",
+    "delivered"
+  ],
+  "tomorrow_patterns": [
+    "morgen",
+    "tomorrow"
+  ],
+  "tracking_regex": "(0034[0-9]{16}|[A-Z]{2}[0-9]{9}[A-Z]{2}|[0-9]{12,16})",
+  "tracking_url_regex": "(https://[^\\s\\\"'<]+(?:aliexpress\\.com|cainiao\\.com|dhl\\.de)[^\\s\\\"'<]*)",
+  "default_tracking_url": "https://www.aliexpress.com/p/order/index.html",
+  "content_regex": "Bestellung\\s+([0-9]+)"
+}
