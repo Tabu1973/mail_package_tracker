@@ -5,84 +5,106 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
-  <a href="https://github.com/Tabu1973/mail_package_tracker/releases"><img src="https://img.shields.io/badge/version-1.1.0-blue.svg" alt="Version 1.1.0"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge" alt="HACS Custom"></a>
+  <a href="https://github.com/Tabu1973/mail_package_tracker/releases"><img src="https://img.shields.io/github/v/release/Tabu1973/mail_package_tracker?style=for-the-badge" alt="GitHub Release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT"></a>
 </p>
 
-**Mail Package Tracker** ist eine universelle, ressourcenschonende Home Assistant Custom Integration (HACS-kompatibel), die dein E-Mail-Postfach lokal per IMAP nach Bestell-, Versand- und Zustellbenachrichtigungen durchsucht, für jeden Paketdienst oder Online-Shop ein eigenes **Gerät** anlegt, ein eigenes **Seitenleisten-Panel (`📦 Paket-Tracker`)** mitbringt und dynamische Paket-Sensoren für dein Dashboard bereitstellt.
+<p align="center">
+  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=Tabu1973&repository=mail_package_tracker&category=integration" target="_blank">
+    <img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open your Home Assistant instance and open a repository inside the Home Assistant Community Store." />
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=mail_package_tracker" target="_blank">
+    <img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Open your Home Assistant instance and start setting up a new integration." />
+  </a>
+</p>
+
+**Mail Package Tracker** is a universal, lightweight Home Assistant custom integration (HACS compatible) that scans your email inbox locally via IMAP for order confirmations, shipping notifications, and delivery updates. It creates a dedicated **Device** for each carrier or online shop, includes a built-in **Sidebar Configuration Panel (`📦 Paket-Tracker`)**, and dynamically creates package sensors for your dashboard.
 
 ---
 
-## ✨ Highlights & Features
+## ✨ Key Features
 
-- **🖥️ Eigenes Seitenleisten-Panel (`📦 Paket-Tracker`) mit Schalter:**
-  - Über den Schalter **`In Seitenleiste einblenden`** (`switch.mail_package_tracker_ubersicht_in_seitenleiste_einblenden`) lässt sich das Konfigurations-Panel jederzeit live in der Home Assistant Seitenleiste ein- oder ausblenden.
-  - Im Panel kannst du alle **Lieferanten & Filterregeln** bequem bearbeiten, neue Shops anlegen, im **🧪 Live E-Mail-Tester** echte E-Mails aus deinem Postfach mit einem Klick gegen die Regeln testen und erkannte Pakete verwalten.
-- **🔄 Kompletter 4-Stufen-Lebenszyklus eines Pakets:**
-  1. 🛒 **`Bestellt` (`Warte auf Versand`)** – direkt ab Bestellbestätigung sichtbar
-  2. 🚚 **`Unterwegs` (`In Kürze erwartet` / `Ankunft morgen`)** – sobald die Versandmail eintrifft
-  3. ⚡ **`In Zustellung` (`Ankunft heute`)** – am Tag der Lieferung
-  4. ✅ **`Zugestellt` (`Heute zugestellt` $\rightarrow$ `Gestern zugestellt` $\rightarrow$ `Geliefert am DD.MM.`)**
-- **🔗 Intelligente Deduplizierung über Bestell- & Sendungsnummern (`all_ids`):**
-  - Verknüpft automatisch die Bestellnummer aus der Bestellbestätigung (z. B. `#SL145110DE26` oder Amazon `303-...`) mit der späteren Trackingnummer aus der Versandmail (z. B. `0034...`), sodass kein Paket doppelt angezeigt wird.
-- **📋 Mehrere Artikel pro Paket & einfache Klartext-Filter (ohne Regex-Zwang):**
-  - Extrahiert auf Wunsch alle Artikel einer Sendung (z. B. `3 Artikel: 1 PETG + 1 PLA+ ...` + vollständige Liste im Attribut `artikel_liste`).
-  - Statt komplizierter regulärer Ausdrücke reichen einfache Suchbegriffe oder der Text vor der Nummer (z. B. `DHL Trackingnummer:, Bestellung` oder `*` für Aufzählungen). Fortgeschrittene können weiterhin optional Regex nutzen.
-- **🚚 Vorbelegte Regeln (Out-of-the-Box):**
-  - Direkt nach der Installation sind **Amazon, DHL, DPD, Hermes, GLS, UPS, AliExpress und Sunlu** fertig vorkonfiguriert.
-- **📬 Ressourcenschonender & sicherer IMAP-Abruf:**
-  - Erkennt **sowohl gelesene als auch ungelesene** E-Mails der letzten `N` Tage (Standard: **3 Tage**, einstellbar `1–14` Tage).
-  - Nutzt `readonly=True` und `BODY.PEEK[]<0.300000>`: Ungelesene E-Mails bleiben im Postfach **unangetastet ungelesen**, und große E-Mail-Anhänge (PDFs, Bilder, ZIPs) werden **weder heruntergeladen noch in Home Assistant gespeichert**.
-  - Zugestellte Pakete werden nach `N` Tagen (Standard: **7 Tage**, einstellbar `1–30` Tage) automatisch aufgeräumt.
+- **🖥️ Built-in Sidebar Panel (`📦 Paket-Tracker`) with Live Toggle:**
+  - Toggle the sidebar entry on or off at any time using the **`Show in Sidebar`** switch (`switch.mail_package_tracker_ubersicht_in_seitenleiste_einblenden`)—no Home Assistant restart required.
+  - Manage all **Carriers & Filter Rules**, add new shops, test real emails from your inbox with one click in the **🧪 Live Email Tester**, and manage active packages in a single clean interface.
+- **🔄 Full 4-Stage Package Lifecycle:**
+  1. 🛒 **`Bestellt` (*Ordered – Awaiting Shipment*)** – Appears as soon as the order confirmation arrives.
+  2. 🚚 **`Unterwegs` (*In Transit / Arriving Tomorrow*)** – Automatically upgrades when the shipping confirmation arrives.
+  3. ⚡ **`In Zustellung` (*Out for Delivery / Arriving Today*)** – Highlights packages arriving today.
+  4. ✅ **`Zugestellt` (*Delivered Today* $\rightarrow$ *Delivered Yesterday* $\rightarrow$ *Delivered on DD.MM.*)** – Automatically cleaned up after `N` days.
+- **🔗 Smart Order-ID & Tracking-ID Deduplication (`all_ids`):**
+  - Automatically links the order number from an initial order confirmation (e.g., `#SL123456DE` or `303-0000000-1234567`) with the carrier tracking number from a subsequent shipping email (e.g., `00340434000012345678`) so the same shipment never appears twice.
+- **📋 Multi-Item Extraction & Simple Plain-Text Rules (No Regex Required!):**
+  - Extracts all items in a shipment (e.g., `3 Artikel: 1 PETG + 1 PLA+ ...` plus a full `artikel_liste` array attribute).
+  - Configure rules using simple plain-text keywords or prefixes (e.g., `DHL Trackingnummer:, Bestellung` or `*` for bullet lists)—regular expressions are optional for advanced users.
+- **🚚 Built-in Carrier & Shop Presets:**
+  - Ready out of the box with presets for **Amazon, DHL, DPD, Hermes, GLS, UPS, AliExpress, and Sunlu**.
+- **📬 Lightweight & Privacy-Friendly IMAP Polling:**
+  - Detects **both read and unread** emails from the last `N` days (default: **3 days**, configurable `1–14` days) using IMAP `SINCE`.
+  - Uses `readonly=True` and `BODY.PEEK[]<0.300000>`: **Unread emails remain unread** in your inbox, and large attachments (PDFs, images, ZIPs) are **never downloaded or stored** in Home Assistant.
 
 ---
 
 ## 🚀 Installation
 
-### Option 1: Über HACS (Empfohlen)
-1. Öffne **HACS** in Home Assistant.
-2. Klicke oben rechts auf das **Drei-Punkte-Menü** $\rightarrow$ **Benutzerdefinierte Repositories**.
-3. Füge die URL `https://github.com/Tabu1973/mail_package_tracker` hinzu und wähle als Kategorie **Integration**.
-4. Suche nach **Mail Package Tracker** und klicke auf **Herunterladen**.
-5. Starte Home Assistant neu.
+### Option 1: Via HACS (Recommended)
 
-### Option 2: Manuelle Installation
-1. Kopiere den Ordner `custom_components/mail_package_tracker` in dein Home Assistant Verzeichnis unter `/config/custom_components/mail_package_tracker`.
-2. Starte Home Assistant neu.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Tabu1973&repository=mail_package_tracker&category=integration)
 
----
+1. Click the **Open HACS Repository** button above (or open **HACS** $\rightarrow$ **Three-dots menu** $\rightarrow$ **Custom repositories** and add `https://github.com/Tabu1973/mail_package_tracker` as category **Integration**).
+2. Click **Download** on **Mail Package Tracker**.
+3. Restart Home Assistant.
 
-## ⚙️ Einrichtung
-
-1. Gehe in Home Assistant auf **Einstellungen $\rightarrow$ Geräte & Dienste $\rightarrow$ Integration hinzufügen**.
-2. Suche nach **Mail Package Tracker**.
-3. Gib deine IMAP-Zugangsdaten ein (z. B. bei **Gmail**: `imap.gmail.com`, Port `993` und ein 16-stelliges Google **App-Passwort**).
-4. Öffne danach links in der Seitenleiste **📦 Paket-Tracker**, um Filterregeln anzupassen, eigene Shops hinzuzufügen oder E-Mails live zu testen.
+### Option 2: Manual Installation
+1. Copy the `custom_components/mail_package_tracker` folder into your Home Assistant `/config/custom_components/mail_package_tracker` directory.
+2. Restart Home Assistant.
 
 ---
 
-## 📊 Attribute jedes Paket-Sensors (`sensor.paket_<carrier>_<id>`)
+## ⚙️ Configuration
 
-| Attribut | Beispiel | Beschreibung |
+[![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=mail_package_tracker)
+
+1. Click the **Add Integration** button above (or navigate to **Settings $\rightarrow$ Devices & Services $\rightarrow$ Add Integration $\rightarrow$ Mail Package Tracker**).
+2. Enter your IMAP credentials (for **Gmail**: `imap.gmail.com`, port `993`, and a 16-character Google **App Password**).
+3. Open **📦 Paket-Tracker** in the Home Assistant sidebar to customize carrier rules, add new shops, or test emails live.
+
+---
+
+## 🛠️ Services
+
+| Service | Description |
+| :--- | :--- |
+| `mail_package_tracker.scan_now` | Immediately triggers an IMAP inbox scan and evaluates all enabled rules. |
+| `mail_package_tracker.remove_package` | Removes a specific package by its `unique_id` (e.g., `paket_sunlu_sl123456de`). |
+| `mail_package_tracker.clear_delivered` | Immediately removes all packages currently marked as `Zugestellt` (*Delivered*). |
+| `mail_package_tracker.process_email` | Manually feeds an email (`sender`, `subject`, `text`, `html`) into the parser. |
+
+---
+
+## 📊 Package Sensor Attributes (`sensor.paket_<carrier>_<id>`)
+
+| Attribute | Example | Description |
 | :--- | :--- | :--- |
-| `unique_id` | `paket_sunlu_sl145110de26` | Eindeutige Paket-ID |
-| `zusteller` | `Sunlu` / `Amazon` / `DHL` | Anzeigename des Händlers / Paketdienstes |
-| `inhalt` | `3 Artikel: 1 PETG + 1 PLA+...` | Erkannter Inhalt / Artikel-Zusammenfassung |
-| `artikel_liste` | `["1 PETG", "1 PLA+"]` | Liste aller erkannten Einzelartikel im Paket |
-| `status` | `Bestellt` / `Unterwegs` / `In Zustellung` / `Zugestellt` | Aktuelle Versandstufe |
-| `zustellung` | `Warte auf Versand` / `In Kürze erwartet` / `Ankunft morgen` / `Ankunft heute` / `Heute zugestellt` | Zeitliche Einordnung (auch Sensor-State) |
-| `tracking_id` | `00340435072882616692` | Extrahierte Sendungs- oder Bestellnummer |
-| `all_ids` | `["00340435072882616692", "SL145110DE26"]` | Alle verknüpften Bestell-/Sendungsnummern |
-| `tracking_url` | `https://www.dhl.de/...` | Direkter Link zur Sendungsverfolgung |
-| `aktualisiert_am` | `21.10.2026 15:01` | Zeitpunkt des letzten Updates |
-| `zugestellt_am` | `2026-10-21` | ISO-Datum der Zustellung (für Auto-Cleanup) |
+| `unique_id` | `paket_sunlu_sl123456de` | Unique package identifier |
+| `zusteller` | `Sunlu` / `Amazon` / `DHL` | Display name of the shop or carrier |
+| `inhalt` | `3 Artikel: 1 PETG + 1 PLA+...` | Extracted package contents / summary |
+| `artikel_liste` | `["1 PETG", "1 PLA+"]` | Full list of individual items in the shipment |
+| `status` | `Bestellt` / `Unterwegs` / `In Zustellung` / `Zugestellt` | Current lifecycle stage |
+| `zustellung` | `Warte auf Versand` / `In Kürze erwartet` / `Ankunft morgen` / `Ankunft heute` / `Heute zugestellt` | Delivery timing (also the sensor's main state) |
+| `tracking_id` | `00340434000012345678` | Primary tracking or order number |
+| `all_ids` | `["00340434000012345678", "SL123456DE"]` | All linked order & tracking IDs for deduplication |
+| `tracking_url` | `https://www.dhl.de/...` | Direct tracking link |
+| `aktualisiert_am` | `21.10.2026 15:00` | Timestamp of the last update |
+| `zugestellt_am` | `2026-10-21` | ISO delivery date (used for automatic cleanup) |
 
 ---
 
-## 🎨 Beispiel-Dashboard (Mushroom + `auto-entities`)
+## 🎨 Example Dashboard Card (Mushroom + `auto-entities`)
 
-Wenn du HACS-Karten wie `Mushroom` und `auto-entities` nutzt, kannst du mit folgendem YAML-Code sofort eine vollautomatische Paket-Übersicht anlegen:
+If you use [Mushroom Cards](https://github.com/piitaya/lovelace-mushroom) and [auto-entities](https://github.com/thomasloven/lovelace-auto-entities) from HACS, you can add a fully automatic package dashboard card using this YAML:
 
 ```yaml
 type: custom:auto-entities
@@ -103,7 +125,7 @@ filter:
     {% set delivered_earlier = delivered | rejectattr('attributes.zugestellt_am', 'eq', today_str) | list %}
 
     {% if transit | length > 0 %}
-      {% set ns.cards = ns.cards + [{'type': 'custom:mushroom-title-card', 'title': '🚚 Unterwegs & In Zustellung'}] %}
+      {% set ns.cards = ns.cards + [{'type': 'custom:mushroom-title-card', 'title': '🚚 In Transit & Out for Delivery'}] %}
       {% for s in transit %}
         {% set ns.cards = ns.cards + [{
           'type': 'custom:mushroom-template-card',
@@ -111,14 +133,14 @@ filter:
           'icon': s.attributes.icon | default('mdi:package-variant-closed'),
           'icon_color': 'blue',
           'primary': s.attributes.zusteller ~ ' • ' ~ s.state,
-          'secondary': '📦 ' ~ (s.attributes.inhalt | default('Sendung')),
+          'secondary': '📦 ' ~ (s.attributes.inhalt | default('Shipment')),
           'tap_action': {'action': 'url', 'url_path': s.attributes.tracking_url | default('https://www.dhl.de')}
         }] %}
       {% endfor %}
     {% endif %}
 
     {% if ordered | length > 0 %}
-      {% set ns.cards = ns.cards + [{'type': 'custom:mushroom-title-card', 'title': '🛒 Bestellt – Warte auf Versand'}] %}
+      {% set ns.cards = ns.cards + [{'type': 'custom:mushroom-title-card', 'title': '🛒 Ordered – Awaiting Shipment'}] %}
       {% for s in ordered %}
         {% set ns.cards = ns.cards + [{
           'type': 'custom:mushroom-template-card',
@@ -126,22 +148,22 @@ filter:
           'icon': s.attributes.icon | default('mdi:cart-outline'),
           'icon_color': 'purple',
           'primary': s.attributes.zusteller ~ ' • ' ~ s.state,
-          'secondary': '🛒 ' ~ (s.attributes.inhalt | default('Bestellung')),
+          'secondary': '🛒 ' ~ (s.attributes.inhalt | default('Order')),
           'tap_action': {'action': 'url', 'url_path': s.attributes.tracking_url | default('#')}
         }] %}
       {% endfor %}
     {% endif %}
 
     {% if delivered_today | length > 0 %}
-      {% set ns.cards = ns.cards + [{'type': 'custom:mushroom-title-card', 'title': '✅ Heute geliefert'}] %}
+      {% set ns.cards = ns.cards + [{'type': 'custom:mushroom-title-card', 'title': '✅ Delivered Today'}] %}
       {% for s in delivered_today %}
         {% set ns.cards = ns.cards + [{
           'type': 'custom:mushroom-template-card',
           'entity': s.entity_id,
           'icon': s.attributes.icon | default('mdi:package-variant-closed'),
           'icon_color': 'green',
-          'primary': s.attributes.zusteller ~ ' • Heute zugestellt',
-          'secondary': '📦 ' ~ (s.attributes.inhalt | default('Sendung')),
+          'primary': s.attributes.zusteller ~ ' • ' ~ s.state,
+          'secondary': '📦 ' ~ (s.attributes.inhalt | default('Shipment')),
           'tap_action': {'action': 'url', 'url_path': s.attributes.tracking_url | default('#')}
         }] %}
       {% endfor %}
@@ -152,14 +174,14 @@ filter:
 
 ---
 
-## 🤝 Community & Weitere Shops hinzufügen
+## 🤝 Contributing & Adding More Carriers / Shops
 
-Da jeder Online-Shop und Paketdienst seine E-Mails etwas anders aufbaut, lebt dieses Projekt vom Mitmachen!
-- Du hast eine funktionierende Filterregel für einen weiteren Shop (z. B. *Otto, Zalando, eBay, Mindfactory, Bambulab, Prusa, FedEx, Post AT / CH*) erstellt?
-- Öffne gerne ein **Issue** oder einen **Pull Request** mit deinen Filter-Schlagwörtern (oder einer anonymisierten Beispiel-Mail), damit wir die Standard-Presets in [`const.py`](custom_components/mail_package_tracker/const.py) für alle erweitern können!
+Because every online shop and parcel carrier formats its notification emails slightly differently, community contributions are very welcome!
+- Created a working filter rule for another shop or carrier (e.g., *Otto, Zalando, eBay, Mindfactory, Bambu Lab, Prusa, FedEx, USPS, Royal Mail, Post AT / CH*)?
+- Open an **Issue** or submit a **Pull Request** with your filter keywords (or an anonymized sample email) so we can include it in the default presets in [`const.py`](custom_components/mail_package_tracker/const.py)!
 
 ---
 
-## 📄 Lizenz
+## 📄 License
 
-MIT License – frei verwendbar und anpassbar für die Home Assistant Community.
+MIT License – free to use and adapt for the Home Assistant community.
