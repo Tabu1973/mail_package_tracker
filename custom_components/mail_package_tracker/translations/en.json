@@ -1,0 +1,148 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Mail Package Tracker",
+        "description": "Connect your email inbox via IMAP (uses `SINCE` date filter and `BODY.PEEK[]` so unread emails are **never** marked as read) or listen to Home Assistant `imap_content` events.",
+        "data": {
+          "mode": "Receive Mode",
+          "imap_host": "IMAP Server (e.g. imap.gmail.com)",
+          "imap_port": "IMAP SSL Port",
+          "imap_user": "Email Address / Username",
+          "imap_password": "App Password / Password",
+          "imap_folder": "Mailbox Folder (e.g. INBOX)",
+          "days_back": "Days to look back (IMAP SINCE)",
+          "scan_interval": "Scan Interval (minutes)",
+          "cleanup_days": "Auto-remove delivered packages after (days)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to IMAP server. Please verify credentials and folder."
+    },
+    "abort": {
+      "already_configured": "Mail Package Tracker is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure Mail Package Tracker",
+        "menu_options": {
+          "rule_from_email": "📧 Create / Edit Rule from Email (Mail Assistant)",
+          "manage_carriers": "🚚 Manage Existing Carriers & Shops",
+          "add_carrier": "➕ Add New Carrier / Shop Manually",
+          "test_email": "🧪 Live Rule Tester",
+          "general_settings": "⚙️ IMAP Connection & General Settings"
+        }
+      },
+      "rule_from_email": {
+        "title": "📧 Step 1: Select an Email from Inbox",
+        "description": "Select one of the recently fetched emails. On the next screen, the full email text is displayed so you can copy-paste phrases directly into your filter rules.",
+        "data": {
+          "email_index": "Select Email"
+        }
+      },
+      "no_emails_found": {
+        "title": "No Emails Cached Yet",
+        "description": "No emails have been fetched yet. Click Submit to create a rule manually or verify your IMAP settings."
+      },
+      "configure_rule_from_email": {
+        "title": "📧 Step 2: Copy Passages & Save Rule",
+        "description": "Copy keywords from the **Email Preview** box into the filter fields below (one pattern per line or comma-separated, case-insensitive).",
+        "data": {
+          "mail_preview": "📄 Email Preview (copy passages from here)",
+          "name": "Carrier / Shop Name (Device Name)",
+          "icon": "Icon",
+          "enabled": "Rule Enabled",
+          "sender_patterns": "Sender Patterns (e.g. sunlu.com, dhl.de)",
+          "subject_patterns": "Optional Subject Patterns",
+          "in_transit_patterns": "Keywords for 'In Transit' (Unterwegs)",
+          "out_for_delivery_patterns": "Keywords for 'Out for Delivery' (In Zustellung)",
+          "delivered_patterns": "Keywords for 'Delivered' (Zugestellt)",
+          "tomorrow_patterns": "Keywords for 'Arriving Tomorrow'",
+          "exclude_patterns": "Exclude Keywords (Newsletter, Order Confirmation)",
+          "tracking_regex": "Regex for Tracking / Order Number",
+          "content_regex": "Optional Regex for Package Content",
+          "default_tracking_url": "Default Tracking URL (supports {tracking_id})"
+        }
+      },
+      "manage_carriers": {
+        "title": "🚚 Manage Carriers & Shops",
+        "description": "Select a carrier/shop rule to edit or delete.",
+        "data": {
+          "carrier_id": "Carrier / Shop",
+          "delete_carrier": "Delete this carrier (or disable preset)"
+        }
+      },
+      "edit_carrier": {
+        "title": "🚚 Edit Filter Rules",
+        "description": "One keyword per line or comma-separated (case-insensitive).",
+        "data": {
+          "name": "Carrier / Shop Name",
+          "icon": "Icon",
+          "enabled": "Rule Enabled",
+          "sender_patterns": "Sender Patterns",
+          "subject_patterns": "Optional Subject Patterns",
+          "ordered_patterns": "Keywords for 'Ordered / Awaiting Shipment'",
+          "in_transit_patterns": "Keywords for 'In Transit'",
+          "out_for_delivery_patterns": "Keywords for 'Out for Delivery'",
+          "delivered_patterns": "Keywords for 'Delivered'",
+          "tomorrow_patterns": "Keywords for 'Arriving Tomorrow'",
+          "exclude_patterns": "Exclude Keywords",
+          "tracking_regex": "Filter for Tracking / Order Number (Prefix or Regex)",
+          "content_regex": "Filter for Package Content (Header or Regex)",
+          "tracking_url_regex": "Filter for Tracking URL (Keywords or Regex)",
+          "default_tracking_url": "Default Tracking URL ({tracking_id})"
+        }
+      },
+      "add_carrier": {
+        "title": "➕ Add New Carrier / Shop",
+        "description": "Creates a new Carrier Device with custom filter rules.",
+        "data": {
+          "name": "Carrier / Shop Name",
+          "icon": "Icon",
+          "enabled": "Rule Enabled",
+          "sender_patterns": "Sender Patterns",
+          "subject_patterns": "Optional Subject Patterns",
+          "ordered_patterns": "Keywords for 'Ordered / Awaiting Shipment'",
+          "in_transit_patterns": "Keywords for 'In Transit'",
+          "out_for_delivery_patterns": "Keywords for 'Out for Delivery'",
+          "delivered_patterns": "Keywords for 'Delivered'",
+          "tomorrow_patterns": "Keywords for 'Arriving Tomorrow'",
+          "exclude_patterns": "Exclude Keywords",
+          "tracking_regex": "Filter for Tracking / Order Number (Prefix or Regex)",
+          "content_regex": "Filter for Package Content (Header or Regex)",
+          "tracking_url_regex": "Filter for Tracking URL (Keywords or Regex)",
+          "default_tracking_url": "Default Tracking URL ({tracking_id})"
+        }
+      },
+      "test_email": {
+        "title": "🧪 Live Rule Tester",
+        "description": "Test your rules against sample email content. Check 'Finish' to close.",
+        "data": {
+          "test_result": "Match Result",
+          "test_sender": "Test Sender",
+          "test_subject": "Test Subject",
+          "test_body": "Test Email Body",
+          "finish": "Finish testing and close"
+        }
+      },
+      "general_settings": {
+        "title": "⚙️ General & IMAP Settings",
+        "description": "Adjust IMAP credentials, lookback days, and auto-cleanup.",
+        "data": {
+          "mode": "Receive Mode",
+          "imap_host": "IMAP Server",
+          "imap_port": "IMAP SSL Port",
+          "imap_user": "Email Address / Username",
+          "imap_password": "App Password / Password",
+          "imap_folder": "Mailbox Folder",
+          "days_back": "Days to look back (IMAP SINCE)",
+          "scan_interval": "Scan Interval (minutes)",
+          "cleanup_days": "Auto-remove delivered packages after (days)"
+        }
+      }
+    }
+  }
+}

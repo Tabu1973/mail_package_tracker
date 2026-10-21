@@ -1,0 +1,13 @@
+{
+  "domain": "mail_package_tracker",
+  "name": "Mail Package Tracker",
+  "codeowners": ["@Tabu1973"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "websocket_api"],
+  "documentation": "https://github.com/Tabu1973/mail_package_tracker",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/Tabu1973/mail_package_tracker/issues",
+  "requirements": [],
+  "version": "1.1.0"
+}

@@ -1,0 +1,52 @@
+scan_now:
+  name: Postfach jetzt scannen
+  description: Ruft sofort die letzten E-Mails per IMAP ab und prüft alle aktiven Händler-/Paketdienst-Regeln.
+
+remove_package:
+  name: Paket entfernen
+  description: Entfernt ein einzelnes Paket anhand seiner unique_id (z.B. paket_dhl_00340434123456).
+  fields:
+    unique_id:
+      name: Paket Unique-ID oder Entity-ID
+      description: Die ID des Pakets (z.B. paket_amazon_12345 oder sensor.paket_amazon_12345).
+      required: true
+      example: "paket_sunlu_de12345"
+      selector:
+        text:
+
+clear_delivered:
+  name: Zugestellte Pakete aufräumen
+  description: Entfernt sofort alle bereits als 'Zugestellt' markierten Pakete aus der Übersicht.
+
+process_email:
+  name: E-Mail manuell verarbeiten
+  description: Übergibt eine E-Mail (Absender, Betreff, Text/HTML) direkt an den Parser (z.B. aus einer eigenen Automation oder zum Testen).
+  fields:
+    sender:
+      name: Absender
+      description: E-Mail-Adresse oder From-Header.
+      required: true
+      example: "store+123@sunlu.com"
+      selector:
+        text:
+    subject:
+      name: Betreff
+      description: Betreffzeile der E-Mail.
+      required: true
+      example: "A shipment from order #DE12345 is on the way"
+      selector:
+        text:
+    text:
+      name: Text-Inhalt
+      description: Plain-Text Body der E-Mail.
+      required: false
+      selector:
+        text:
+          multiline: true
+    html:
+      name: HTML-Inhalt
+      description: Optionaler HTML-Body der E-Mail.
+      required: false
+      selector:
+        text:
+          multiline: true

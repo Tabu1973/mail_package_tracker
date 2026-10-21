@@ -1,0 +1,150 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mail Package Tracker einrichten",
+        "description": "Verbinde dein E-Mail-Postfach per IMAP (nutzt `SINCE`-Filter auf die letzten Tage und `BODY.PEEK[]`, sodass ungelesene Mails **nicht** als gelesen markiert werden) oder nutze bestehende `imap_content`-Events.",
+        "data": {
+          "mode": "Empfangs-Modus",
+          "imap_host": "IMAP Server (z.B. imap.gmail.com)",
+          "imap_port": "IMAP SSL-Port",
+          "imap_user": "E-Mail-Adresse / Benutzername",
+          "imap_password": "App-Passwort / Passwort",
+          "imap_folder": "Postfach-Ordner (z.B. INBOX)",
+          "days_back": "Zeitraum für IMAP-Abruf (Tage rückwirkend)",
+          "scan_interval": "Abruf-Intervall (Minuten)",
+          "cleanup_days": "Zugestellte Pakete automatisch löschen nach (Tagen)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Verbindung zum IMAP-Server fehlgeschlagen. Bitte Zugangsdaten (bei Gmail: 16-stelliges App-Passwort) und Ordner prüfen."
+    },
+    "abort": {
+      "already_configured": "Mail Package Tracker ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Mail Package Tracker konfigurieren",
+        "menu_options": {
+          "rule_from_email": "📧 Regel aus E-Mail erstellen / anpassen (Mail-Assistent)",
+          "manage_carriers": "🚚 Bestehende Händler & Paketdienste verwalten",
+          "add_carrier": "➕ Neuen Händler / Paketdienst manuell anlegen",
+          "test_email": "🧪 Live-Regeltester (E-Mail testen)",
+          "general_settings": "⚙️ IMAP-Verbindung & Allgemeine Einstellungen"
+        }
+      },
+      "rule_from_email": {
+        "title": "📧 Schritt 1: E-Mail aus dem Posteingang wählen",
+        "description": "Wähle eine der zuletzt abgerufenen E-Mails aus. Im nächsten Schritt wird dir der komplette Inhalt (Absender, Betreff & Text) angezeigt, sodass du Textpassagen direkt in die Filterregeln kopieren kannst.",
+        "data": {
+          "email_index": "E-Mail auswählen"
+        }
+      },
+      "no_emails_found": {
+        "title": "Noch keine E-Mails im Zwischenspeicher",
+        "description": "Es wurden noch keine E-Mails abgerufen. Klicke auf Weiter, um eine Regel manuell anzulegen, oder prüfe die IMAP-Zugangsdaten."
+      },
+      "configure_rule_from_email": {
+        "title": "📧 Schritt 2: Passagen kopieren & Filterregel speichern",
+        "description": "Kopiere die gewünschten Schlüsselwörter aus dem Feld **E-Mail-Vorschau** direkt in die darunterliegenden Filterfelder (ein Begriff pro Zeile oder kommagetrennt, Groß-/Kleinschreibung ist egal).",
+        "data": {
+          "mail_preview": "📄 E-Mail-Vorschau (zum Kopieren von Passagen)",
+          "name": "Name des Händlers / Paketdienstes (Gerätename)",
+          "icon": "Icon",
+          "enabled": "Regel aktiv",
+          "sender_patterns": "Absender-Filter (z.B. sunlu.com, dhl.de)",
+          "subject_patterns": "Optionale Betreff-Filter (falls Absender allein nicht reicht)",
+          "ordered_patterns": "Suchbegriffe für Status 'Bestellt / Warte auf Versand' (Bestellbestätigung)",
+          "in_transit_patterns": "Suchbegriffe für Status 'Unterwegs' (Versandt)",
+          "out_for_delivery_patterns": "Suchbegriffe für Status 'In Zustellung' (Kommt heute)",
+          "delivered_patterns": "Suchbegriffe für Status 'Zugestellt' (Angekommen)",
+          "tomorrow_patterns": "Suchbegriffe für 'Ankunft morgen'",
+          "exclude_patterns": "Ausschluss-Wörter (Ignorieren bei z.B. Newsletter, Storniert)",
+          "tracking_regex": "Filter für Sendungs-/Bestellnummer (Text davor oder Regex)",
+          "content_regex": "Filter für Paketinhalt / Artikel (Überschrift davor oder Regex)",
+          "tracking_url_regex": "Filter für Tracking-Link (enthält z.B. dhl, tracking)",
+          "default_tracking_url": "Standard Tracking-URL (optional mit {tracking_id})"
+        }
+      },
+      "manage_carriers": {
+        "title": "🚚 Händler & Paketdienste verwalten",
+        "description": "Wähle einen vorbelegten oder eigenen Paketdienst/Händler aus, um dessen Filterregeln zu bearbeiten oder ihn zu deaktivieren/löschen.",
+        "data": {
+          "carrier_id": "Händler / Paketdienst",
+          "delete_carrier": "Diesen Händler löschen (bzw. Standard-Preset deaktivieren)"
+        }
+      },
+      "edit_carrier": {
+        "title": "🚚 Filterregeln bearbeiten",
+        "description": "Ein Begriff pro Zeile oder kommagetrennt. Groß-/Kleinschreibung wird automatisch ignoriert.",
+        "data": {
+          "name": "Name des Händlers / Paketdienstes",
+          "icon": "Icon",
+          "enabled": "Regel aktiv",
+          "sender_patterns": "Absender-Filter (z.B. amazon.de, dhl.de)",
+          "subject_patterns": "Optionale Betreff-Filter",
+          "ordered_patterns": "Suchbegriffe für Status 'Bestellt / Warte auf Versand' (Bestellbestätigung)",
+          "in_transit_patterns": "Suchbegriffe für Status 'Unterwegs'",
+          "out_for_delivery_patterns": "Suchbegriffe für Status 'In Zustellung'",
+          "delivered_patterns": "Suchbegriffe für Status 'Zugestellt'",
+          "tomorrow_patterns": "Suchbegriffe für 'Ankunft morgen'",
+          "exclude_patterns": "Ausschluss-Wörter (Newsletter, Storniert etc.)",
+          "tracking_regex": "Filter für Sendungs-/Bestellnummer (Text davor oder Regex)",
+          "content_regex": "Filter für Paketinhalt / Artikel (Überschrift davor oder Regex)",
+          "tracking_url_regex": "Filter für Tracking-Link (enthält z.B. dhl, tracking)",
+          "default_tracking_url": "Standard Tracking-URL (Platzhalter: {tracking_id})"
+        }
+      },
+      "add_carrier": {
+        "title": "➕ Neuen Händler / Paketdienst anlegen",
+        "description": "Erstellt ein neues Händler-Gerät mit eigenen Filterregeln für Unterwegs, In Zustellung, Zugestellt und Trackingnummer.",
+        "data": {
+          "name": "Name des Händlers / Paketdienstes (z.B. Sunlu, Otto, Zalando)",
+          "icon": "Icon",
+          "enabled": "Regel aktiv",
+          "sender_patterns": "Absender-Filter (z.B. sunlu.com)",
+          "subject_patterns": "Optionale Betreff-Filter",
+          "ordered_patterns": "Suchbegriffe für Status 'Bestellt / Warte auf Versand' (Bestellbestätigung)",
+          "in_transit_patterns": "Suchbegriffe für Status 'Unterwegs'",
+          "out_for_delivery_patterns": "Suchbegriffe für Status 'In Zustellung'",
+          "delivered_patterns": "Suchbegriffe für Status 'Zugestellt'",
+          "tomorrow_patterns": "Suchbegriffe für 'Ankunft morgen'",
+          "exclude_patterns": "Ausschluss-Wörter (Ignorieren)",
+          "tracking_regex": "Filter für Sendungs-/Bestellnummer (Text davor oder Regex)",
+          "content_regex": "Filter für Paketinhalt / Artikel (Überschrift davor oder Regex)",
+          "tracking_url_regex": "Filter für Tracking-Link (enthält z.B. dhl, tracking)",
+          "default_tracking_url": "Standard Tracking-URL (optional mit {tracking_id})"
+        }
+      },
+      "test_email": {
+        "title": "🧪 Live-Regeltester",
+        "description": "Teste deine Filterregeln mit einem beliebigen E-Mail-Text. Setze den Haken bei 'Test beenden', um zum Menü zurückzukehren.",
+        "data": {
+          "test_result": "Ergebnis der Prüfung",
+          "test_sender": "Test-Absender",
+          "test_subject": "Test-Betreff",
+          "test_body": "Test E-Mail-Inhalt",
+          "finish": "Test beenden und schließen"
+        }
+      },
+      "general_settings": {
+        "title": "⚙️ Allgemeine & IMAP-Einstellungen",
+        "description": "Passe die IMAP-Zugangsdaten, den Rückblick-Zeitraum (Tage) und das automatische Aufräumen an.",
+        "data": {
+          "mode": "Empfangs-Modus",
+          "imap_host": "IMAP Server",
+          "imap_port": "IMAP SSL-Port",
+          "imap_user": "E-Mail-Adresse / Benutzername",
+          "imap_password": "App-Passwort / Passwort",
+          "imap_folder": "Postfach-Ordner",
+          "days_back": "Zeitraum für IMAP-Abruf (Tage rückwirkend)",
+          "scan_interval": "Abruf-Intervall (Minuten)",
+          "cleanup_days": "Zugestellte Pakete automatisch löschen nach (Tagen)"
+        }
+      }
+    }
+  }
+}
