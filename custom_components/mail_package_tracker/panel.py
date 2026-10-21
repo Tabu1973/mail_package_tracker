@@ -62,11 +62,13 @@ async def async_update_sidebar_panel(hass: HomeAssistant, show: bool) -> None:
     panels = hass.data.get("frontend_panels", {})
     if show:
         version = int(time.time())
+        is_de = str(getattr(hass.config, "language", "de") or "de").lower().startswith("de")
+        sidebar_title = "Paket-Tracker" if is_de else "Package Tracker"
 
         async_register_built_in_panel(
             hass,
             component_name="custom",
-            sidebar_title="Paket-Tracker",
+            sidebar_title=sidebar_title,
             sidebar_icon="mdi:package-variant-closed-check",
             frontend_url_path=PANEL_URL_PATH,
             config={
