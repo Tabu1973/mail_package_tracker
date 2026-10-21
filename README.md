@@ -112,7 +112,7 @@ Automatic grouping by lifecycle stage (*In Transit & Out for Delivery*, *Ordered
 
 | Attribute | Example | Description |
 | :--- | :--- | :--- |
-| `unique_id` | `paket_sunlu_sl123456de` | Unique package identifier |
+| `unique_id` | `paket_sunlu_sl123xxxde` | Unique package identifier |
 | `zusteller` | `Sunlu` / `Amazon` / `DHL` | Display name of the shop or carrier |
 | `inhalt` | `3 Artikel: 1 PETG + 1 PLA+...` | Extracted package contents / summary |
 | `artikel_liste` | `["1 PETG", "1 PLA+"]` | Full list of individual items in the shipment |
