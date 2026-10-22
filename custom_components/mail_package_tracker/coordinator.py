@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -35,36 +36,68 @@ from .const import (
     MODE_IMAP,
     STATUS_DELIVERED,
     STATUS_ORDERED,
+    STATUS_OUT_FOR_DELIVERY,
     STATUS_RANK,
     STORAGE_KEY,
     STORAGE_VERSION,
 )
 from .imap_client import fetch_recent_emails_sync
-from .parser import clean_email_body, parse_email_with_rules
+from .parser import clean_email_body, parse_email_date, parse_email_with_rules
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def compute_display_timing(pkg: dict[str, Any]) -> str:
-    """Compute human-friendly German delivery timing string based on status and date."""
+    """Compute human-friendly German delivery timing string dynamically based on status and current date."""
     status = pkg.get("status", "")
-    raw_timing = pkg.get("zustellung", "In Kürze erwartet")
     zugestellt_am = pkg.get("zugestellt_am")
+    erwartet_am = pkg.get("erwartet_am")
+    today = date.today()
 
-    if status == STATUS_DELIVERED and zugestellt_am:
+    if status == STATUS_DELIVERED:
+        if zugestellt_am:
+            try:
+                deliv_date = date.fromisoformat(str(zugestellt_am)[:10])
+                diff = (today - deliv_date).days
+                if diff <= 0:
+                    return "Heute zugestellt"
+                if diff == 1:
+                    return "Gestern zugestellt"
+                return f"Geliefert am {deliv_date.strftime('%d.%m.')}"
+            except ValueError:
+                pass
+        return "Zugestellt"
+
+    if status == STATUS_OUT_FOR_DELIVERY:
+        return "Ankunft heute"
+
+    if erwartet_am:
         try:
-            deliv_date = date.fromisoformat(str(zugestellt_am)[:10])
-            today = date.today()
-            diff = (today - deliv_date).days
-            if diff <= 0:
-                return "Heute zugestellt"
+            exp_date = date.fromisoformat(str(erwartet_am)[:10])
+            diff = (exp_date - today).days
+            if diff == 0:
+                return "Ankunft heute"
             if diff == 1:
-                return "Gestern zugestellt"
-            return f"Geliefert am {deliv_date.strftime('%d.%m.')}"
+                return "Ankunft morgen"
+            if diff == 2:
+                return "Ankunft übermorgen"
+            if diff > 2:
+                wochentage = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+                return f"Ankunft {wochentage[exp_date.weekday()]}, {exp_date.strftime('%d.%m.')}"
+            if diff == -1:
+                return "Gestern erwartet"
+            return f"Seit {abs(diff)} Tagen überfällig"
         except ValueError:
-            return "Heute zugestellt"
+            pass
 
-    return raw_timing
+    raw_timing = pkg.get("zustellung")
+    if raw_timing and raw_timing not in ("Ankunft morgen", "Ankunft heute"):
+        return raw_timing
+
+    if status == STATUS_ORDERED:
+        return "Warte auf Versand"
+
+    return "In Kürze erwartet"
 
 
 class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -82,6 +115,13 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.show_in_sidebar: bool = True
         self._new_package_callbacks: list[Callable[[str], None]] = []
         self._new_carrier_callbacks: list[Callable[[str], None]] = []
+        self._unsub_midnight: Callable[[], None] | None = async_track_time_change(
+            hass,
+            self._handle_midnight,
+            hour=0,
+            minute=0,
+            second=5,
+        )
 
         scan_min = self.get_config(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         super().__init__(
@@ -314,6 +354,10 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if existing and existing.get("zugestellt_am") and parsed["status"] == STATUS_DELIVERED:
             parsed["zugestellt_am"] = existing["zugestellt_am"]
 
+        # Preserve erwartet_am if existing had one and new email did not specify a new one
+        if existing and existing.get("erwartet_am") and not parsed.get("erwartet_am"):
+            parsed["erwartet_am"] = existing["erwartet_am"]
+
         # Preserve more descriptive content if new email only has generic subject
         if existing and existing.get("inhalt") and len(existing["inhalt"]) > len(parsed.get("inhalt", "")):
             if parsed["inhalt"].endswith("Sendung"):
@@ -350,6 +394,21 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.hass.async_create_task(self.async_save_storage())
         self.async_set_updated_data(self._build_state_dict())
 
+    @callback
+    def _handle_midnight(self, _now: datetime) -> None:
+        """Recalculate package display timings and badge counts at midnight."""
+        _LOGGER.debug("Midnight recalculation of package timings and badges")
+        self._cleanup_old_packages()
+        self.async_set_updated_data(self._build_state_dict())
+        self.hass.async_create_task(self.async_save_storage())
+
+    @callback
+    def async_unload(self) -> None:
+        """Clean up listeners when unloaded."""
+        if self._unsub_midnight:
+            self._unsub_midnight()
+            self._unsub_midnight = None
+
     def _cleanup_old_packages(self) -> None:
         """Remove delivered packages older than cleanup_days and refresh display timing."""
         cleanup_days = int(self.get_config(CONF_CLEANUP_DAYS, DEFAULT_CLEANUP_DAYS))
@@ -357,6 +416,21 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         to_remove: list[str] = []
 
         for uid, pkg in self.packages.items():
+            # If package had 'Ankunft morgen' from an older email but no erwartet_am stored yet,
+            # infer erwartet_am from recent emails or mail_date or aktualisiert_am so it immediately corrects today!
+            if not pkg.get("erwartet_am") and pkg.get("zustellung") in ("Ankunft morgen", "morgen"):
+                ref_dt = None
+                for m in self.recent_emails:
+                    if pkg.get("tracking_id") and pkg.get("tracking_id") in m.get("text", ""):
+                        ref_dt = parse_email_date(m.get("date"))
+                        break
+                if not ref_dt and pkg.get("mail_date"):
+                    ref_dt = parse_email_date(pkg.get("mail_date"))
+                if not ref_dt and pkg.get("aktualisiert_am"):
+                    ref_dt = parse_email_date(pkg.get("aktualisiert_am"))
+                if ref_dt:
+                    pkg["erwartet_am"] = (ref_dt + timedelta(days=1)).isoformat()
+
             pkg["zustellung"] = compute_display_timing(pkg)
             tid = str(pkg.get("tracking_id") or "").strip()
             turl = str(pkg.get("tracking_url") or "").strip()

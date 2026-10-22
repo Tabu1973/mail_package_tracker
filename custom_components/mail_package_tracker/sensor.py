@@ -244,6 +244,7 @@ class DynamicPackageSensor(CoordinatorEntity[MailPackageCoordinator], SensorEnti
             "artikel_liste": pkg.get("artikel_liste", [pkg.get("inhalt", "Bestellung")]),
             "status": pkg.get("status", "Unterwegs"),
             "zustellung": timing,
+            "erwartet_am": pkg.get("erwartet_am"),
             "tracking_id": pkg.get("tracking_id", ""),
             "tracking_url": pkg.get("tracking_url", ""),
             "aktualisiert_am": pkg.get("aktualisiert_am", ""),

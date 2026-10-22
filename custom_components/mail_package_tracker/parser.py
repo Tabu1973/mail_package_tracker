@@ -1,7 +1,8 @@
 """Email and rule parser for Mail Package Tracker."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
+from email.utils import parsedate_to_datetime
 import html
 import re
 from typing import Any
@@ -24,6 +25,69 @@ _STYLE_SCRIPT_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.IGNORECASE | 
 _WHITESPACE_RE = re.compile(r"[ \t]+")
 _NEWLINES_RE = re.compile(r"\n{3,}")
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+_MONTHS_MAP: dict[str, int] = {
+    "januar": 1, "jan": 1, "january": 1,
+    "februar": 2, "feb": 2, "february": 2,
+    "märz": 3, "maerz": 3, "mar": 3, "march": 3,
+    "april": 4, "apr": 4,
+    "mai": 5, "may": 5,
+    "juni": 6, "jun": 6, "june": 6,
+    "juli": 7, "jul": 7, "july": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "oktober": 10, "okt": 10, "oct": 10, "october": 10,
+    "november": 11, "nov": 11,
+    "dezember": 12, "dez": 12, "dec": 12, "december": 12,
+}
+
+_EXPLICIT_DATE_RE = re.compile(
+    r"(?:ankunft|zustellung|lieferung|delivery|arriving)[:\s]+"
+    r"(?:voraussichtlich\s+)?(?:am\s+|bis\s+)?"
+    r"(?:(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[,:\s]+)?"
+    r"(\d{1,2})\.\s*([a-zäöü]+|\d{1,2})",
+    re.IGNORECASE,
+)
+
+
+def parse_email_date(date_str: str | None) -> date:
+    """Parse an RFC 2822, ISO, or localized date string into a date object, falling back to today."""
+    if not date_str:
+        return date.today()
+    try:
+        dt = parsedate_to_datetime(str(date_str))
+        if dt:
+            return dt.date()
+    except Exception:
+        pass
+    try:
+        return date.fromisoformat(str(date_str)[:10])
+    except Exception:
+        pass
+    m = re.search(r"(\d{1,2})\.(\d{1,2})\.(\d{4})", str(date_str))
+    if m:
+        d, mo, y = map(int, m.groups())
+        try:
+            return date(y, mo, d)
+        except ValueError:
+            pass
+    return date.today()
+
+
+def extract_explicit_delivery_date(text: str, ref_year: int) -> str | None:
+    """Extract an explicit arrival date from email text, returning ISO YYYY-MM-DD or None."""
+    m = _EXPLICIT_DATE_RE.search(text)
+    if not m:
+        return None
+    day = int(m.group(1))
+    m_raw = m.group(2).lower()
+    month = int(m_raw) if m_raw.isdigit() else _MONTHS_MAP.get(m_raw)
+    if month and 1 <= month <= 12 and 1 <= day <= 31:
+        try:
+            return date(ref_year, month, day).isoformat()
+        except ValueError:
+            return None
+    return None
 
 
 def clean_email_body(raw_text: str, raw_html: str = "") -> tuple[str, list[str]]:
@@ -323,30 +387,46 @@ def parse_email_with_rules(
             "subject": subject_clean,
         }
 
+    mail_ref_date = parse_email_date(email_date)
+    erwartet_am: str | None = None
+    zugestellt_am: str | None = None
+
     if deliv_hit:
         status = STATUS_DELIVERED
         timing = TIMING_DELIVERED_TODAY
         status_keyword = deliv_hit
+        zugestellt_am = mail_ref_date.isoformat()
+        erwartet_am = mail_ref_date.isoformat()
     elif ofd_hit:
         status = STATUS_OUT_FOR_DELIVERY
         timing = TIMING_TODAY
         status_keyword = ofd_hit
+        erwartet_am = mail_ref_date.isoformat()
     elif transit_hit:
         status = STATUS_IN_TRANSIT
-        if tomorrow_hit:
+        status_keyword = transit_hit
+        explicit_date = extract_explicit_delivery_date(combined_raw, mail_ref_date.year)
+        if explicit_date:
+            erwartet_am = explicit_date
+            timing = TIMING_SOON
+        elif tomorrow_hit:
+            erwartet_am = (mail_ref_date + timedelta(days=1)).isoformat()
             timing = TIMING_TOMORROW
         elif _matches_any(
             combined_lower,
             ["ankunft heute", "lieferung heute", "zustellung heute", "kommt heute", "arriving today"],
         ):
+            erwartet_am = mail_ref_date.isoformat()
             timing = TIMING_TODAY
         else:
             timing = TIMING_SOON
-        status_keyword = transit_hit
     else:
         status = STATUS_ORDERED
-        timing = TIMING_ORDERED
         status_keyword = ordered_hit or ""
+        explicit_date = extract_explicit_delivery_date(combined_raw, mail_ref_date.year)
+        if explicit_date:
+            erwartet_am = explicit_date
+        timing = TIMING_ORDERED
 
     # 4. Extract Tracking Number / Order ID (supports plain-text prefixes like 'DHL Trackingnummer:' or Regex)
     all_ids: list[str] = []
@@ -450,6 +530,7 @@ def parse_email_with_rules(
         uid = f"paket_{slugify_id(carrier_id, 12)}_{slugify_id(content, 20)}"
 
     now_dt = datetime.now()
+    final_delivered_date = zugestellt_am or (now_dt.strftime("%Y-%m-%d") if status == STATUS_DELIVERED else None)
     return {
         "matched": True,
         "uid": uid,
@@ -462,10 +543,12 @@ def parse_email_with_rules(
         "artikel_liste": items_found if items_found else [content],
         "status": status,
         "zustellung": timing,
+        "erwartet_am": erwartet_am,
         "tracking_url": tracking_url,
         "matched_reason": f"{matched_reason} | Status-Treffer: '{status_keyword}'",
         "aktualisiert_am": now_dt.strftime("%d.%m.%Y %H:%M"),
-        "zugestellt_am": now_dt.strftime("%Y-%m-%d") if status == STATUS_DELIVERED else None,
+        "zugestellt_am": final_delivered_date,
+        "mail_date": mail_ref_date.isoformat(),
         "sender": sender_clean,
         "subject": subject_clean,
     }
