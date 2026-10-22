@@ -98,9 +98,9 @@ class MailPackageSummarySensor(CoordinatorEntity[MailPackageCoordinator], Sensor
 
     @property
     def native_value(self) -> str:
-        """Return compact badge status text (e.g., 'Pakete 0/2/1')."""
+        """Return compact badge status text (e.g., 'Pakete 0/2/1/0')."""
         data = self.coordinator.data or {}
-        return data.get("badge_state", "Pakete 0/0/0")
+        return data.get("badge_state", "Pakete 0/0/0/0")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -108,10 +108,12 @@ class MailPackageSummarySensor(CoordinatorEntity[MailPackageCoordinator], Sensor
         data = self.coordinator.data or {}
         pkgs = list((data.get("packages") or {}).values())
         return {
+            "heute_geliefert_anzahl": data.get("delivered_today_count", 0),
+            "ankunft_heute_anzahl": data.get("arriving_today_count", 0),
+            "ankunft_spaeter_anzahl": data.get("arriving_later_count", 0),
             "bestellt_anzahl": data.get("ordered_count", 0),
             "unterwegs_anzahl": data.get("in_transit_count", 0),
             "erwartet_anzahl": data.get("expected_count", 0),
-            "heute_geliefert_anzahl": data.get("delivered_today_count", 0),
             "gesamt_geliefert_anzahl": data.get("delivered_total_count", 0),
             "aktive_haendler": len(self.coordinator.carriers),
             "pakete": pkgs,

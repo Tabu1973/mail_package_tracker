@@ -538,19 +538,32 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             p for p in self.packages.values() if p.get("status") == STATUS_DELIVERED
         ]
 
-        ordered_count = len(ordered)
-        transit_count = len(in_transit)
-        exp_count = len(expected)
-        del_today_count = len(delivered_today)
+        arriving_today = [
+            p
+            for p in in_transit
+            if p.get("status") == STATUS_OUT_FOR_DELIVERY
+            or p.get("erwartet_am") == today_str
+            or p.get("zustellung") == "Ankunft heute"
+        ]
+        arriving_later = [
+            p for p in in_transit if p not in arriving_today
+        ]
 
-        badge_state = f"Pakete {ordered_count}/{transit_count}/{del_today_count}"
+        del_today_count = len(delivered_today)
+        arr_today_count = len(arriving_today)
+        arr_later_count = len(arriving_later)
+        ordered_count = len(ordered)
+
+        badge_state = f"Pakete {del_today_count}/{arr_today_count}/{arr_later_count}/{ordered_count}"
 
         return {
             "badge_state": badge_state,
-            "ordered_count": ordered_count,
-            "in_transit_count": transit_count,
-            "expected_count": exp_count,
             "delivered_today_count": del_today_count,
+            "arriving_today_count": arr_today_count,
+            "arriving_later_count": arr_later_count,
+            "ordered_count": ordered_count,
+            "in_transit_count": len(in_transit),
+            "expected_count": len(expected),
             "delivered_total_count": len(delivered_all),
             "packages": self.packages,
             "carriers": self.carriers,
