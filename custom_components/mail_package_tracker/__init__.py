@@ -39,6 +39,7 @@ SERVICE_SCAN_NOW = "scan_now"
 SERVICE_REMOVE_PACKAGE = "remove_package"
 SERVICE_CLEAR_DELIVERED = "clear_delivered"
 SERVICE_PROCESS_EMAIL = "process_email"
+SERVICE_MARK_DELIVERED = "mark_delivered"
 
 SCHEMA_REMOVE_PACKAGE = vol.Schema(
     {
@@ -125,6 +126,14 @@ def _register_services(hass: HomeAssistant) -> None:
         for coord in _get_coordinators():
             await coord.async_remove_package(uid)
 
+    async def handle_mark_delivered(call: ServiceCall) -> None:
+        """Mark a specific package as delivered."""
+        uid = call.data["unique_id"]
+        if uid.startswith("sensor."):
+            uid = uid.replace("sensor.", "", 1)
+        for coord in _get_coordinators():
+            await coord.async_mark_delivered(uid)
+
     async def handle_clear_delivered(call: ServiceCall) -> None:
         """Remove all delivered packages immediately."""
         for coord in _get_coordinators():
@@ -147,6 +156,12 @@ def _register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         SERVICE_REMOVE_PACKAGE,
         handle_remove_package,
+        schema=SCHEMA_REMOVE_PACKAGE,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_MARK_DELIVERED,
+        handle_mark_delivered,
         schema=SCHEMA_REMOVE_PACKAGE,
     )
     hass.services.async_register(

@@ -59,6 +59,8 @@ const I18N = {
     pkgs_title: (n) => `📦 Gespeicherte Pakete (${n})`,
     open_tracking: "Tracking öffnen ↗",
     btn_remove: "🗑️ Entfernen",
+    btn_mark_delivered: "✅ Als zugestellt markieren",
+    toast_marked_delivered: "✅ Paket als zugestellt markiert!",
     toast_saved: (n) => `✅ Filterregel für "${n}" gespeichert & E-Mails geprüft!`,
     toast_scanning: "🔄 Suche nach neuen E-Mails...",
     toast_scanned: "✅ E-Mail-Postfach erfolgreich synchronisiert!",
@@ -147,6 +149,8 @@ const I18N = {
     pkgs_title: (n) => `📦 Stored Packages (${n})`,
     open_tracking: "Open Tracking ↗",
     btn_remove: "🗑️ Remove",
+    btn_mark_delivered: "✅ Mark as Delivered",
+    toast_marked_delivered: "✅ Package marked as delivered!",
     toast_saved: (n) => `✅ Filter rule for "${n}" saved & emails re-scanned!`,
     toast_scanning: "🔄 Scanning inbox for new emails...",
     toast_scanned: "✅ Email inbox synchronized!",
@@ -757,6 +761,21 @@ class MailPackageTrackerPanel extends HTMLElement {
         this._showToast(t.toast_applied);
       }
       this._renderTestResultOnly();
+    } catch (err) {
+      this._showToast("❌ " + (err.message || err));
+    }
+  }
+
+  async _markDelivered(uid) {
+    const t = this._t();
+    try {
+      const res = await this._hass.callWS({
+        type: "mail_package_tracker/mark_delivered",
+        uid,
+      });
+      this._packages = res.packages || [];
+      this._render();
+      this._showToast(t.toast_marked_delivered);
     } catch (err) {
       this._showToast("❌ " + (err.message || err));
     }
@@ -1373,7 +1392,10 @@ class MailPackageTrackerPanel extends HTMLElement {
               <a href="${this._escape(p.tracking_url || "#")}" target="_blank" rel="noopener">${t.open_tracking}</a>
             </div>
           </div>
-          <button class="btn btn-danger btn-del-pkg" data-uid="${this._escape(p.uid)}">${t.btn_remove}</button>
+          <div style="display:flex;gap:6px;align-items:center;">
+            ${p.status !== "Zugestellt" ? `<button class="btn btn-deliver-pkg" data-uid="${this._escape(p.uid)}" style="background:#16a34a;color:#fff;">${t.btn_mark_delivered}</button>` : ""}
+            <button class="btn btn-danger btn-del-pkg" data-uid="${this._escape(p.uid)}">${t.btn_remove}</button>
+          </div>
         </div>
       `
       )
@@ -1491,6 +1513,10 @@ class MailPackageTrackerPanel extends HTMLElement {
 
     root.querySelector("#btn-test-run")?.addEventListener("click", () => this._runEmailTest(false));
     root.querySelector("#btn-test-apply")?.addEventListener("click", () => this._runEmailTest(true));
+
+    root.querySelectorAll(".btn-deliver-pkg").forEach((btn) => {
+      btn.addEventListener("click", () => this._markDelivered(btn.dataset.uid));
+    });
 
     root.querySelectorAll(".btn-del-pkg").forEach((btn) => {
       btn.addEventListener("click", () => this._removePackage(btn.dataset.uid));

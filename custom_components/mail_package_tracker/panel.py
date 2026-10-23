@@ -358,6 +358,25 @@ def _register_websocket_commands(hass: HomeAssistant) -> None:
 
     @websocket_api.websocket_command(
         {
+            vol.Required("type"): "mail_package_tracker/mark_delivered",
+            vol.Required("uid"): str,
+        }
+    )
+    @websocket_api.async_response
+    async def ws_mark_delivered(
+        hass: HomeAssistant,
+        connection: websocket_api.ActiveConnection,
+        msg: dict[str, Any],
+    ) -> None:
+        coord = _get_coordinator(hass)
+        if not coord:
+            connection.send_error(msg["id"], "not_loaded", "Coordinator not found")
+            return
+        await coord.async_mark_delivered(msg["uid"])
+        connection.send_result(msg["id"], {"packages": list(coord.packages.values())})
+
+    @websocket_api.websocket_command(
+        {
             vol.Required("type"): "mail_package_tracker/remove_package",
             vol.Required("uid"): str,
         }
@@ -467,6 +486,7 @@ def _register_websocket_commands(hass: HomeAssistant) -> None:
         ws_save_carrier,
         ws_delete_carrier,
         ws_test_email,
+        ws_mark_delivered,
         ws_remove_package,
         ws_scan_now,
         ws_import_carrier_json,

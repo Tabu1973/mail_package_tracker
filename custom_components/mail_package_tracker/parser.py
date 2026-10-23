@@ -118,8 +118,9 @@ def clean_email_body(raw_text: str, raw_html: str = "") -> tuple[str, list[str]]
     cleaned = _NEWLINES_RE.sub("\n\n", cleaned).strip()
 
     for match in re.findall(r"(https?://[^\s\"'<>]+)", cleaned):
-        if match not in urls:
-            urls.append(match)
+        u_clean = match.rstrip(")>.,;\"'")
+        if u_clean and u_clean not in urls:
+            urls.append(u_clean)
 
     return cleaned, urls
 
@@ -503,29 +504,52 @@ def parse_email_with_rules(
             except re.error:
                 continue
 
-    # If shipped and default_tracking_url uses {tracking_id}, prefer it over broken logistics.dhl or missing links
-    if (
+    # Clean trailing punctuation from regex/cand URL
+    if tracking_url:
+        tracking_url = tracking_url.rstrip(")>.,;\"'")
+
+    # Detect any DHL tracking piececode
+    dhl_piececode = ""
+    for cand_id in ([tracking_id] + all_ids):
+        cid_str = str(cand_id or "").strip()
+        if (
+            cid_str.startswith("0034")
+            or cid_str.startswith("JJD")
+            or (len(cid_str) == 12 and cid_str.isdigit() and carrier_id == "dhl")
+        ):
+            dhl_piececode = cid_str
+            break
+
+    is_dhl_redirect = any(
+        d in (tracking_url or "").lower()
+        for d in ("custcomm.dhl", "logistics.dhl", "paket.de")
+    )
+
+    # Prefer canonical direct DHL tracking URL whenever DHL piececode or DHL redirect is involved
+    if (carrier_id == "dhl" or dhl_piececode or is_dhl_redirect) and (dhl_piececode or tracking_id):
+        final_code = dhl_piececode or tracking_id
+        tracking_url = f"https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={final_code}"
+    elif (
         status != STATUS_ORDERED
         and tracking_id
         and "{tracking_id}" in default_url
-        and (not tracking_url or "logistics.dhl" in tracking_url.lower() or "orders/" in tracking_url.lower())
+        and (not tracking_url or "orders/" in tracking_url.lower())
     ):
         tracking_url = default_url.replace("{tracking_id}", tracking_id)
-    elif tracking_url and "logistics.dhl" in tracking_url.lower() and tracking_id and tracking_id.startswith("0034"):
-        tracking_url = f"https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}"
 
     if not tracking_url and extracted_urls:
         for u in extracted_urls:
-            if "logistics.dhl" in u.lower() and tracking_id and tracking_id.startswith("0034"):
-                tracking_url = f"https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}"
-                break
-            if any(k in u.lower() for k in ("track", "shiptrack", "verfolgen", "parcel", "sendung", "order")):
-                tracking_url = u
+            u_clean = u.rstrip(")>.,;\"'")
+            if any(k in u_clean.lower() for k in ("track", "shiptrack", "verfolgen", "parcel", "sendung", "order")):
+                tracking_url = u_clean
                 break
 
     if not tracking_url:
         fallback_url = default_url or "https://www.google.com/search?q=sendungsverfolgung"
         tracking_url = fallback_url.replace("{tracking_id}", tracking_id)
+
+    if tracking_url:
+        tracking_url = tracking_url.rstrip(")>.,;\"'")
 
     # 7. Construct unique package UID
     if tracking_id:

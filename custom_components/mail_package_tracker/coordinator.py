@@ -517,9 +517,23 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             pkg["zustellung"] = compute_display_timing(pkg)
             tid = str(pkg.get("tracking_id") or "").strip()
-            turl = str(pkg.get("tracking_url") or "").strip()
-            if "logistics.dhl" in turl.lower() and tid.startswith("0034"):
-                pkg["tracking_url"] = f"https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tid}"
+            turl = str(pkg.get("tracking_url") or "").strip().rstrip(")>.,;\"'")
+
+            dhl_code = ""
+            for cid in [tid] + list(pkg.get("all_ids") or []):
+                cstr = str(cid or "").strip()
+                if cstr.startswith("0034") or cstr.startswith("JJD"):
+                    dhl_code = cstr
+                    break
+            is_dhl_redirect = any(
+                d in turl.lower()
+                for d in ("custcomm.dhl", "logistics.dhl", "paket.de")
+            )
+            if (dhl_code or is_dhl_redirect or pkg.get("carrier_id") == "dhl") and (dhl_code or tid):
+                final_code = dhl_code or tid
+                pkg["tracking_url"] = f"https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={final_code}"
+            else:
+                pkg["tracking_url"] = turl
             if pkg.get("status") == STATUS_DELIVERED and pkg.get("zugestellt_am"):
                 try:
                     deliv_date = date.fromisoformat(str(pkg["zugestellt_am"])[:10])
@@ -530,6 +544,18 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         for uid in to_remove:
             self.packages.pop(uid, None)
+
+    async def async_mark_delivered(self, uid: str) -> None:
+        """Mark a package as delivered manually."""
+        if uid in self.packages:
+            pkg = self.packages[uid]
+            pkg["status"] = STATUS_DELIVERED
+            pkg["zugestellt_am"] = date.today().isoformat()
+            pkg["zustellung"] = compute_display_timing(pkg)
+            pkg["aktualisiert_am"] = datetime.now().strftime("%d.%m.%Y %H:%M")
+            await self.async_save_storage()
+            self.async_set_updated_data(self._build_state_dict())
+            _LOGGER.info("Manually marked package %s as delivered", uid)
 
     async def async_remove_package(self, uid: str) -> None:
         """Remove a specific package by UID."""
