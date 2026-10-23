@@ -42,11 +42,12 @@ _MONTHS_MAP: dict[str, int] = {
 }
 
 _EXPLICIT_DATE_RE = re.compile(
-    r"(?:(?:ankunft|zustellung|lieferung|delivery|arriving|zugestellt)[:\s]+)?"
-    r"(?:voraussichtlich\s+)?"
-    r"(?:am\s+|bis\s+)?"
+    r"(?:(?:ankunft|zustellung|zustelltag|zustelltermin|lieferung|liefertermin|lieferdatum|delivery|arriving|zugestellt)[:\s]+)?"
+    r"(?:voraussichtlich\s+|neuer\s+|neuer voraussichtlicher\s+)?"
+    r"(?:am\s+|bis\s+|ist\s+)?"
+    r"[-*—\s]*"
     r"(?:(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[,:\s]+)?"
-    r"(?:den\s+)?"
+    r"(?:den\s+|der\s+|dem\s+)?"
     r"(\d{1,2})\.\s*([a-zäöü]+|\d{1,2})",
     re.IGNORECASE,
 )
@@ -413,7 +414,19 @@ def parse_email_with_rules(
         explicit_date = extract_explicit_delivery_date(combined_raw, mail_ref_date.year)
         if explicit_date:
             erwartet_am = explicit_date
-            timing = TIMING_SOON
+            try:
+                exp_d = date.fromisoformat(explicit_date)
+                diff_days = (exp_d - mail_ref_date).days
+                if diff_days == 1:
+                    timing = TIMING_TOMORROW
+                elif diff_days == 0:
+                    timing = TIMING_TODAY
+                elif diff_days == 2:
+                    timing = "Ankunft übermorgen"
+                else:
+                    timing = TIMING_SOON
+            except ValueError:
+                timing = TIMING_SOON
         elif tomorrow_hit:
             erwartet_am = (mail_ref_date + timedelta(days=1)).isoformat()
             timing = TIMING_TOMORROW

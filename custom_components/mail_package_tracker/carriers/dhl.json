@@ -28,7 +28,15 @@
     "auf dem weg",
     "wurde versandt",
     "in kürze",
-    "kommt am"
+    "kommt am",
+    "verzögert sich",
+    "verzögerung",
+    "verzögerungen",
+    "neuer voraussichtlicher zustelltag",
+    "neuer zustelltag",
+    "neuer liefertermin",
+    "zustelltag ist",
+    "auf dem transportweg"
   ],
   "out_for_delivery_patterns": [
     "in zustellung",
@@ -52,7 +60,9 @@
     "kommt morgen",
     "voraussichtlich morgen",
     "zustellung morgen",
-    "lieferung morgen"
+    "lieferung morgen",
+    "morgen",
+    "am nächsten werktag"
   ],
   "tracking_regex": "Ihre Sendungsnummer:\nSendungsnummer:\nIhre Sendungsnummer\nSendungsnummer\npiececode=([0-9]{10,20})\n0034[0-9]{16}\nJJD[0-9]{10,20}\nCR[0-9]{9}[A-Z]{2}\n[0-9]{12}",
   "tracking_url_regex": "(https://[^\\s\\\"'<]+dhl\\.[a-z.]+/[^\\s\\\"'<]*)",

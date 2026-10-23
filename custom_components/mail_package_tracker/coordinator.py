@@ -487,7 +487,7 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if p2_rank > p1_rank:
                         primary["status"] = dup["status"]
                         primary["zustellung"] = dup.get("zustellung") or primary.get("zustellung")
-                    if dup.get("erwartet_am") and not primary.get("erwartet_am"):
+                    if dup.get("erwartet_am"):
                         primary["erwartet_am"] = dup["erwartet_am"]
                     if dup.get("tracking_url") and not primary.get("tracking_url"):
                         primary["tracking_url"] = dup["tracking_url"]
