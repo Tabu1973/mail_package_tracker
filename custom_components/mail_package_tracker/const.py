@@ -162,7 +162,7 @@ DEFAULT_CARRIERS: dict[str, dict[str, Any]] = {
             "zustellung morgen",
             "lieferung morgen",
         ],
-        "tracking_regex": r"(0034[0-9]{16}|[0-9]{12,20}|JJD[0-9]{10,20})",
+        "tracking_regex": "Ihre Sendungsnummer:\nSendungsnummer:\nIhre Sendungsnummer\nSendungsnummer\npiececode=([0-9]{10,20})\n0034[0-9]{16}\nJJD[0-9]{10,20}\nCR[0-9]{9}[A-Z]{2}\n[0-9]{12}",
         "tracking_url_regex": r"(https://[^\s\"'<]+dhl\.[a-z.]+/[^\s\"'<]*)",
         "default_tracking_url": "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
         "content_regex": r"(?:Sendung von|Paket von)\s+([A-Za-z0-9ÄÖÜäöüß &._-]{2,35}?)(?:\s+(?:mit|ist|wird|kommt|wurde|an|in|[0-9]{8})|[,.!\n\r\"<>]|$)",

@@ -42,9 +42,11 @@ _MONTHS_MAP: dict[str, int] = {
 }
 
 _EXPLICIT_DATE_RE = re.compile(
-    r"(?:ankunft|zustellung|lieferung|delivery|arriving)[:\s]+"
-    r"(?:voraussichtlich\s+)?(?:am\s+|bis\s+)?"
+    r"(?:(?:ankunft|zustellung|lieferung|delivery|arriving|zugestellt)[:\s]+)?"
+    r"(?:voraussichtlich\s+)?"
+    r"(?:am\s+|bis\s+)?"
     r"(?:(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[,:\s]+)?"
+    r"(?:den\s+)?"
     r"(\d{1,2})\.\s*([a-zäöü]+|\d{1,2})",
     re.IGNORECASE,
 )
@@ -109,6 +111,10 @@ def clean_email_body(raw_text: str, raw_html: str = "") -> tuple[str, list[str]]
     cleaned = re.sub(r"<br\s*/?>|</p>|</div>|</tr>|</li>", "\n", cleaned, flags=re.IGNORECASE)
     cleaned = _HTML_TAG_RE.sub(" ", cleaned)
     cleaned = html.unescape(cleaned)
+    # Strip markdown image references so image asset paths do not pollute tracking number or content extraction
+    cleaned = re.sub(r"\[https?://[^\s\]]+\.(?:png|jpg|jpeg|gif|webp|svg)[^\]]*\]", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\[image\]", " ", cleaned, flags=re.IGNORECASE)
+
     cleaned = _WHITESPACE_RE.sub(" ", cleaned)
     cleaned = "\n".join(line.strip() for line in cleaned.splitlines())
     cleaned = _NEWLINES_RE.sub("\n\n", cleaned).strip()

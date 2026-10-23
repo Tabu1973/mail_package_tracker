@@ -358,10 +358,22 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if existing and existing.get("erwartet_am") and not parsed.get("erwartet_am"):
             parsed["erwartet_am"] = existing["erwartet_am"]
 
-        # Preserve more descriptive content if new email only has generic subject
-        if existing and existing.get("inhalt") and len(existing["inhalt"]) > len(parsed.get("inhalt", "")):
-            if parsed["inhalt"].endswith("Sendung"):
+        # Preserve more descriptive content and shop name if new email is from carrier / has generic subject
+        if existing and existing.get("inhalt"):
+            parsed_inhalt = parsed.get("inhalt", "")
+            # If existing has real items or longer descriptive content, keep it!
+            if existing.get("artikel_liste") and len(existing.get("artikel_liste", [])) > 1:
                 parsed["inhalt"] = existing["inhalt"]
+                parsed["artikel_liste"] = existing["artikel_liste"]
+            elif any(k in parsed_inhalt.lower() for k in ("sendung", "paket", "ihre", "logistics", "express")):
+                parsed["inhalt"] = existing["inhalt"]
+                parsed["artikel_liste"] = existing.get("artikel_liste", [existing["inhalt"]])
+
+            # If existing carrier was a shop (e.g. sunlu, amazon, aliexpress) and new is a pure delivery carrier
+            logistics_carriers = {"dhl", "dpd", "hermes", "gls", "ups"}
+            if existing.get("carrier_id") not in logistics_carriers and parsed.get("carrier_id") in logistics_carriers:
+                parsed["zusteller"] = f"{existing.get('zusteller')} (via {parsed.get('zusteller')})"
+                parsed["icon"] = existing.get("icon") or parsed.get("icon")
 
         parsed["zustellung"] = compute_display_timing(parsed)
         self.packages[uid] = parsed
@@ -414,6 +426,58 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         cleanup_days = int(self.get_config(CONF_CLEANUP_DAYS, DEFAULT_CLEANUP_DAYS))
         today = date.today()
         to_remove: list[str] = []
+
+        # Remove known artifact packages from image URLs if present
+        if "paket_dhl_457717046790" in self.packages:
+            self.packages.pop("paket_dhl_457717046790", None)
+
+        # Cross-package deduplication across self.packages
+        uids = list(self.packages.keys())
+        for i in range(len(uids)):
+            u1 = uids[i]
+            if u1 not in self.packages:
+                continue
+            p1 = self.packages[u1]
+            ids1 = {
+                x.strip().lower()
+                for x in ([p1.get("tracking_id")] + list(p1.get("all_ids") or []))
+                if x and str(x).strip() and len(str(x).strip()) >= 5
+            }
+            for j in range(i + 1, len(uids)):
+                u2 = uids[j]
+                if u2 not in self.packages:
+                    continue
+                p2 = self.packages[u2]
+                ids2 = {
+                    x.strip().lower()
+                    for x in ([p2.get("tracking_id")] + list(p2.get("all_ids") or []))
+                    if x and str(x).strip() and len(str(x).strip()) >= 5
+                }
+                if ids1 & ids2:
+                    p1_items = len(p1.get("artikel_liste") or [])
+                    p2_items = len(p2.get("artikel_liste") or [])
+                    p1_rank = STATUS_RANK.get(p1.get("status", ""), 0)
+                    p2_rank = STATUS_RANK.get(p2.get("status", ""), 0)
+                    if p1_items >= p2_items:
+                        primary, dup = p1, p2
+                        prim_uid, dup_uid = u1, u2
+                    else:
+                        primary, dup = p2, p1
+                        prim_uid, dup_uid = u2, u1
+                    merged = list(primary.get("all_ids") or [])
+                    for did in ([dup.get("tracking_id")] + list(dup.get("all_ids") or [])):
+                        if did and did not in merged:
+                            merged.append(did)
+                    primary["all_ids"] = merged
+                    if p2_rank > p1_rank:
+                        primary["status"] = dup["status"]
+                        primary["zustellung"] = dup.get("zustellung") or primary.get("zustellung")
+                    if dup.get("erwartet_am") and not primary.get("erwartet_am"):
+                        primary["erwartet_am"] = dup["erwartet_am"]
+                    if dup.get("tracking_url") and not primary.get("tracking_url"):
+                        primary["tracking_url"] = dup["tracking_url"]
+                    self.packages.pop(dup_uid, None)
+                    _LOGGER.info("Merged duplicate package %s into %s", dup_uid, prim_uid)
 
         for uid, pkg in self.packages.items():
             # If package had 'Ankunft morgen' from an older email but no erwartet_am stored yet,
