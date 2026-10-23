@@ -78,17 +78,15 @@ def parse_email_date(date_str: str | None) -> date:
 
 def extract_explicit_delivery_date(text: str, ref_year: int) -> str | None:
     """Extract an explicit arrival date from email text, returning ISO YYYY-MM-DD or None."""
-    m = _EXPLICIT_DATE_RE.search(text)
-    if not m:
-        return None
-    day = int(m.group(1))
-    m_raw = m.group(2).lower()
-    month = int(m_raw) if m_raw.isdigit() else _MONTHS_MAP.get(m_raw)
-    if month and 1 <= month <= 12 and 1 <= day <= 31:
-        try:
-            return date(ref_year, month, day).isoformat()
-        except ValueError:
-            return None
+    for m in _EXPLICIT_DATE_RE.finditer(text):
+        day = int(m.group(1))
+        m_raw = m.group(2).lower()
+        month = int(m_raw) if m_raw.isdigit() else _MONTHS_MAP.get(m_raw)
+        if month and 1 <= month <= 12 and 1 <= day <= 31:
+            try:
+                return date(ref_year, month, day).isoformat()
+            except ValueError:
+                pass
     return None
 
 

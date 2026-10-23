@@ -369,10 +369,16 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 parsed["inhalt"] = existing["inhalt"]
                 parsed["artikel_liste"] = existing.get("artikel_liste", [existing["inhalt"]])
 
-            # If existing carrier was a shop (e.g. sunlu, amazon, aliexpress) and new is a pure delivery carrier
-            logistics_carriers = {"dhl", "dpd", "hermes", "gls", "ups"}
-            if existing.get("carrier_id") not in logistics_carriers and parsed.get("carrier_id") in logistics_carriers:
-                parsed["zusteller"] = f"{existing.get('zusteller')} (via {parsed.get('zusteller')})"
+        # Rule: Always keep the name of the shop from the order confirmation / shop email!
+        logistics_carriers = {"dhl", "dpd", "hermes", "gls", "ups"}
+        if existing:
+            # If existing package is from a shop, keep the shop name, carrier_id, and shop icon!
+            if existing.get("carrier_id") not in logistics_carriers:
+                parsed["carrier_id"] = existing["carrier_id"]
+                parsed["zusteller"] = existing["zusteller"]
+                parsed["icon"] = existing.get("icon") or parsed.get("icon")
+            elif parsed.get("carrier_id") in logistics_carriers and existing.get("zusteller") not in ("DHL", "DPD", "Hermes", "GLS", "UPS", "Paketdienst"):
+                parsed["zusteller"] = existing["zusteller"]
                 parsed["icon"] = existing.get("icon") or parsed.get("icon")
 
         parsed["zustellung"] = compute_display_timing(parsed)
@@ -458,7 +464,16 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     p2_items = len(p2.get("artikel_liste") or [])
                     p1_rank = STATUS_RANK.get(p1.get("status", ""), 0)
                     p2_rank = STATUS_RANK.get(p2.get("status", ""), 0)
-                    if p1_items >= p2_items:
+                    logistics_carriers = {"dhl", "dpd", "hermes", "gls", "ups"}
+                    p1_is_shop = p1.get("carrier_id") not in logistics_carriers
+                    p2_is_shop = p2.get("carrier_id") not in logistics_carriers
+                    if p1_is_shop and not p2_is_shop:
+                        primary, dup = p1, p2
+                        prim_uid, dup_uid = u1, u2
+                    elif p2_is_shop and not p1_is_shop:
+                        primary, dup = p2, p1
+                        prim_uid, dup_uid = u2, u1
+                    elif p1_items >= p2_items:
                         primary, dup = p1, p2
                         prim_uid, dup_uid = u1, u2
                     else:
@@ -480,6 +495,11 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _LOGGER.info("Merged duplicate package %s into %s", dup_uid, prim_uid)
 
         for uid, pkg in self.packages.items():
+            # If package UID indicates a shop (e.g. 'paket_sunlu...') but carrier_id became 'dhl', restore the shop name!
+            if uid.startswith("paket_sunlu_") and pkg.get("zusteller") in ("DHL", "DHL Paket", "Sunlu (via DHL)"):
+                pkg["carrier_id"] = "sunlu"
+                pkg["zusteller"] = "Sunlu"
+                pkg["icon"] = "mdi:printer-3d-nozzle"
             # If package had 'Ankunft morgen' from an older email but no erwartet_am stored yet,
             # infer erwartet_am from recent emails or mail_date or aktualisiert_am so it immediately corrects today!
             if not pkg.get("erwartet_am") and pkg.get("zustellung") in ("Ankunft morgen", "morgen"):
