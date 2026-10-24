@@ -155,6 +155,12 @@ DEFAULT_CARRIERS: dict[str, dict[str, Any]] = {
             "zur auslieferung",
         ],
         "delivered_patterns": [
+            "ist angekommen",
+            "liegt am",
+            "ablageort",
+            "wunschort",
+            "hinterlegt",
+            "packstation",
             "wurde zugestellt",
             "erfolgreich zugestellt",
             "haben wir zugestellt",
@@ -163,6 +169,8 @@ DEFAULT_CARRIERS: dict[str, dict[str, Any]] = {
             "wurde geliefert",
             "am wunschort",
             "am ablageort",
+            "zugestellt",
+            "geliefert",
         ],
         "tomorrow_patterns": [
             "kommt morgen",

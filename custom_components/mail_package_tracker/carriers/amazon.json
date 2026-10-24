@@ -52,7 +52,12 @@
     "erfolgreich zugestellt",
     "wurde an ",
     "wurde übergeben",
-    "liegt am ablageort"
+    "liegt am ablageort",
+    "ablageort",
+    "briefkasten",
+    "hinterlegt",
+    "geliefert",
+    "zugestellt"
   ],
   "tomorrow_patterns": [
     "ankunft morgen",

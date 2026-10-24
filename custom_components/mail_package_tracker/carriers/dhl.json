@@ -54,7 +54,15 @@
     "abholbereit",
     "wurde geliefert",
     "am wunschort",
-    "am ablageort"
+    "am ablageort",
+    "ist angekommen",
+    "liegt am",
+    "ablageort",
+    "wunschort",
+    "hinterlegt",
+    "packstation",
+    "zugestellt",
+    "geliefert"
   ],
   "tomorrow_patterns": [
     "kommt morgen",
