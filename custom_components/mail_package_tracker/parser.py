@@ -41,14 +41,46 @@ _MONTHS_MAP: dict[str, int] = {
     "dezember": 12, "dez": 12, "dec": 12, "december": 12,
 }
 
-_EXPLICIT_DATE_RE = re.compile(
-    r"(?:(?:ankunft|zustellung|zustelltag|zustelltermin|lieferung|liefertermin|lieferdatum|delivery|arriving|zugestellt)[:\s]+)?"
-    r"(?:voraussichtlich\s+|neuer\s+|neuer voraussichtlicher\s+)?"
-    r"(?:am\s+|bis\s+|ist\s+)?"
+_WEEKDAYS = (
+    r"(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|"
+    r"monday|tuesday|wednesday|thursday|friday|saturday|sunday)"
+)
+
+_MONTH_NAMES_PATTERN = "|".join(_MONTHS_MAP.keys())
+
+_DELIVERY_KEYWORDS = (
+    r"(?:\b(?:ankunft|zustellung|zustelltag|zustelltermin|lieferung|liefertermin|lieferdatum|delivery|arriving|zugestellt)\b"
+    r"[:\s]*(?:voraussichtlich\s+|neuer\s+|neuer voraussichtlicher\s+)?(?:am\s+|bis\s+|ist\s+)?)"
+    r"|(?:\b(?:voraussichtlich|neuer\s+liefertermin)\s+(?:am\s+|bis\s+)?)"
+    r"|(?:\b(?:am|bis)\s+(?:dem\s+|den\s+|der\s+)?(?=" + _WEEKDAYS + r"|\d))"
+)
+
+# 1. Matches dates with delivery keyword context or preposition + optional weekday:
+# E.g. "Zustellung: 28.10.2026", "Lieferung voraussichtlich am 28. Oktober", "Ankunft am Mittwoch, 28.10."
+# Numeric dates MUST have a second dot (e.g. 28.10. or 28.10.2026) to prevent matching prices (19.08 EUR).
+_EXPLICIT_DELIVERY_DATE_RE = re.compile(
+    r"(?:" + _DELIVERY_KEYWORDS + r")"
     r"[-*—\s]*"
-    r"(?:(?:montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag|monday|tuesday|wednesday|thursday|friday|saturday|sunday)[,:\s]+)?"
+    r"(?:" + _WEEKDAYS + r"[,:\s]+)?"
     r"(?:den\s+|der\s+|dem\s+)?"
-    r"(\d{1,2})\.\s*([a-zäöü]+|\d{1,2})",
+    r"(\d{1,2})\.\s*"
+    r"(?:(" + _MONTH_NAMES_PATTERN + r")\b(?:\s*(\d{2,4})\b)?|(\d{1,2})\.(?:\s*(\d{2,4})\b)?)"
+    r"(?!\s*(?:eur|€|\$|usd|gbp|chf|cent|ct|kg|g|m|cm|mm|stk|stück|%))",
+    re.IGNORECASE,
+)
+
+# 2. Weekday followed by month name: e.g. "Mittwoch, 28. Oktober" (even without explicit "Lieferung" keyword)
+_WEEKDAY_MONTH_RE = re.compile(
+    r"\b" + _WEEKDAYS + r"[,:\s]+(?:den\s+|der\s+|dem\s+)?"
+    r"(\d{1,2})\.\s*"
+    r"(" + _MONTH_NAMES_PATTERN + r")\b(?:\s*(\d{2,4})\b)?"
+    r"(?!\s*(?:eur|€|\$|usd|gbp|chf|cent|ct|kg|g|m|cm|mm|stk|stück|%))",
+    re.IGNORECASE,
+)
+
+# Exclude matches preceded by order or invoice keywords (e.g. "Bestellt am 24. Oktober", "Bestelldatum: 24.10.")
+_ORDER_DATE_PREFIX_RE = re.compile(
+    r"\b(?:bestellt|bestelldatum|bestelltag|kaufdatum|auftragsdatum|rechnungsdatum|bezahlt)\b[:\s]*(?:am\s+)?$",
     re.IGNORECASE,
 )
 
@@ -77,17 +109,67 @@ def parse_email_date(date_str: str | None) -> date:
     return date.today()
 
 
-def extract_explicit_delivery_date(text: str, ref_year: int) -> str | None:
+def extract_explicit_delivery_date(text: str, ref_date: date | int | None = None) -> str | None:
     """Extract an explicit arrival date from email text, returning ISO YYYY-MM-DD or None."""
-    for m in _EXPLICIT_DATE_RE.finditer(text):
+    if isinstance(ref_date, date):
+        reference_date = ref_date
+    elif isinstance(ref_date, int):
+        reference_date = date(ref_date, 1, 1)
+    else:
+        reference_date = date.today()
+
+    def _build_iso(day: int, month: int, year_str: str | None) -> str | None:
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            return None
+        year = int(year_str) if year_str else reference_date.year
+        if year < 100:
+            year += 2000
+        # If email is in December and delivery is in January, rollover year if no explicit year was provided
+        if not year_str and reference_date.month == 12 and month == 1:
+            year += 1
+        try:
+            d = date(year, month, day)
+            # Delivery dates in transit emails should not be far in the past (> 2 days before email)
+            if (d - reference_date).days >= -2:
+                return d.isoformat()
+        except ValueError:
+            pass
+        return None
+
+    # 1. Search for delivery-prefixed dates
+    for m in _EXPLICIT_DELIVERY_DATE_RE.finditer(text):
+        start_idx = max(0, m.start() - 30)
+        prefix_snippet = text[start_idx:m.start()].strip()
+        if _ORDER_DATE_PREFIX_RE.search(prefix_snippet):
+            continue
+
         day = int(m.group(1))
-        m_raw = m.group(2).lower()
-        month = int(m_raw) if m_raw.isdigit() else _MONTHS_MAP.get(m_raw)
-        if month and 1 <= month <= 12 and 1 <= day <= 31:
-            try:
-                return date(ref_year, month, day).isoformat()
-            except ValueError:
-                pass
+        month_name = m.group(2)
+        year_name = m.group(3)
+        month_num = m.group(4)
+        year_num = m.group(5)
+
+        month = _MONTHS_MAP.get(month_name.lower()) if month_name else int(month_num)
+        iso = _build_iso(day, month, year_name or year_num)
+        if iso:
+            return iso
+
+    # 2. Search for Weekday + Month Name (e.g. "Dienstag, 27. Oktober")
+    for m in _WEEKDAY_MONTH_RE.finditer(text):
+        start_idx = max(0, m.start() - 30)
+        prefix_snippet = text[start_idx:m.start()].strip()
+        if _ORDER_DATE_PREFIX_RE.search(prefix_snippet):
+            continue
+
+        day = int(m.group(1))
+        month_name = m.group(2)
+        year_str = m.group(3)
+
+        month = _MONTHS_MAP.get(month_name.lower(), 0)
+        iso = _build_iso(day, month, year_str)
+        if iso:
+            return iso
+
     return None
 
 
@@ -434,8 +516,11 @@ def parse_email_with_rules(
     elif transit_hit:
         status = STATUS_IN_TRANSIT
         status_keyword = transit_hit
-        explicit_date = extract_explicit_delivery_date(combined_raw, mail_ref_date.year)
-        if explicit_date:
+        explicit_date = extract_explicit_delivery_date(combined_raw, mail_ref_date)
+        if tomorrow_hit:
+            erwartet_am = (mail_ref_date + timedelta(days=1)).isoformat()
+            timing = TIMING_TOMORROW
+        elif explicit_date:
             erwartet_am = explicit_date
             try:
                 exp_d = date.fromisoformat(explicit_date)
@@ -450,9 +535,6 @@ def parse_email_with_rules(
                     timing = TIMING_SOON
             except ValueError:
                 timing = TIMING_SOON
-        elif tomorrow_hit:
-            erwartet_am = (mail_ref_date + timedelta(days=1)).isoformat()
-            timing = TIMING_TOMORROW
         elif _matches_any(
             combined_lower,
             ["ankunft heute", "lieferung heute", "zustellung heute", "kommt heute", "arriving today"],
@@ -464,7 +546,7 @@ def parse_email_with_rules(
     else:
         status = STATUS_ORDERED
         status_keyword = ordered_hit or ""
-        explicit_date = extract_explicit_delivery_date(combined_raw, mail_ref_date.year)
+        explicit_date = extract_explicit_delivery_date(combined_raw, mail_ref_date)
         if explicit_date:
             erwartet_am = explicit_date
         timing = TIMING_ORDERED
