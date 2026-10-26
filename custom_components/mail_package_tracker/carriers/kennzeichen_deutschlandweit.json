@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "id": "kennzeichen_deutschlandweit",
+  "name": "Kennzeichen deutschlandweit",
+  "icon": "mdi:car-plate",
+  "language": "de",
+  "enabled": true,
+  "sender_patterns": [
+    "kennzeichen-deutschlandweit.de",
+    "kennzeichen deutschlandweit"
+  ],
+  "subject_patterns": [
+    "kennzeichen deutschlandweit"
+  ],
+  "exclude_patterns": [
+    "newsletter",
+    "bewertung",
+    "trusted shops"
+  ],
+  "ordered_patterns": [
+    "bestellung bei kennzeichen-deutschlandweit",
+    "bestellung zur kontrolle",
+    "ihre bestellung bei",
+    "vielen dank für ihre bestellung"
+  ],
+  "in_transit_patterns": [
+    "wird mit dhl an sie versandt",
+    "status ihrer bestellung wurde geändert",
+    "neuer status: versandt",
+    "dhl-sendungsverfolgung",
+    "ist unterwegs"
+  ],
+  "out_for_delivery_patterns": [
+    "in zustellung",
+    "kommt heute"
+  ],
+  "delivered_patterns": [
+    "wurde zugestellt",
+    "erfolgreich zugestellt",
+    "ist angekommen",
+    "liegt am gewünschten ablageort"
+  ],
+  "tomorrow_patterns": [
+    "morgen"
+  ],
+  "tracking_regex": "0034[0-9]{16}\nBestellnummer:\\s*([0-9]+)\nBestellung Nr\\.\\s*([0-9]+)\nBestellung #([0-9]+)",
+  "tracking_url_regex": "(https://[^\\s\\\"'<]+dhl\\.[a-z.]+/[^\\s\\\"'<]*)",
+  "default_tracking_url": "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
+  "content_regex": "[0-9.]+\\s*x\\s+([^\\n\\r=]+?)\\s*="
+}

@@ -374,11 +374,34 @@ def parse_email_with_rules(
         deliv_hit = None
         ofd_hit = None
         transit_hit = None
-    elif subject_lower.startswith(("versendet:", "shipped:")):
+    elif subject_lower.startswith(("versendet:", "shipped:")) or any(k in subject_lower for k in ("ist unterwegs", "auf dem weg", "wurde versandt", "paketankündigung")):
         deliv_hit = None
         ofd_hit = None
-    elif subject_lower.startswith(("in zustellung:", "out for delivery:")):
+    elif subject_lower.startswith(("in zustellung:", "out for delivery:")) or any(k in subject_lower for k in ("kommt heute", "wird heute zugestellt")):
         deliv_hit = None
+
+    # Guard: Future delivery promises ("wird ... zugestellt") or options ("Ablageort buchen") are NOT delivered
+    if deliv_hit:
+        has_future_delivery = bool(
+            re.search(r"\b(?:wird|werden|soll|voraussichtlich|kann)\s+(?:[^.!?\n]{0,80}\s+)?zugestellt\b", combined_lower)
+            or re.search(r"\bablageort\s+(?:buchen|wählen|vereinbaren|ändern)\b", combined_lower)
+        )
+        if has_future_delivery:
+            # Only cancel deliv_hit if there is no explicit past-delivery confirmation in text
+            if not _matches_any(
+                combined_lower,
+                [
+                    "wurde zugestellt",
+                    "wurde geliefert",
+                    "ist angekommen",
+                    "haben wir zugestellt",
+                    "erfolgreich zugestellt",
+                    "liegt am gewünschten ablageort",
+                    "liegt am ablageort",
+                    "liegt am wunschort",
+                ],
+            ):
+                deliv_hit = None
 
     if not (deliv_hit or ofd_hit or transit_hit or ordered_hit):
         return {
@@ -479,7 +502,17 @@ def parse_email_with_rules(
         )
         for q in ('"', "„", "“", "”", "'"):
             raw_subj = raw_subj.replace(q, "")
-        content = raw_subj.strip() or f"{carrier_name} Sendung"
+        
+        # Check if subject is DHL standard pattern "Ihre <Sender> Sendung ..."
+        dhl_subj_match = re.search(
+            r"^Ihre\s+(.+?)\s+Sendung\s+(?:ist unterwegs|kommt heute|liegt|verzögert sich|wird gleich)",
+            raw_subj,
+            re.IGNORECASE,
+        )
+        if dhl_subj_match:
+            content = dhl_subj_match.group(1).strip()
+        else:
+            content = raw_subj.strip() or f"{carrier_name} Sendung"
 
     if len(content) > 85:
         content = content[:82].rstrip() + "..."

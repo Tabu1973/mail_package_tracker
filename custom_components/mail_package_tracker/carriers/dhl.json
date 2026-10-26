@@ -47,22 +47,28 @@
     "zur auslieferung"
   ],
   "delivered_patterns": [
+    "ist angekommen",
+    "liegt am gewünschten ablageort",
+    "liegt am vereinbarten ablageort",
+    "liegt am ablageort",
+    "liegt am wunschort",
+    "am vereinbarten ablageort hinterlegt",
+    "am ablageort hinterlegt",
+    "am wunschort hinterlegt",
     "wurde zugestellt",
     "erfolgreich zugestellt",
     "haben wir zugestellt",
-    "liegt in der packstation",
-    "abholbereit",
     "wurde geliefert",
-    "am wunschort",
-    "am ablageort",
-    "ist angekommen",
-    "liegt am",
-    "ablageort",
-    "wunschort",
-    "hinterlegt",
-    "packstation",
-    "zugestellt",
-    "geliefert"
+    "erfolgreich geliefert",
+    "liegt in der packstation",
+    "in packstation hinterlegt",
+    "in der packstation abholbereit",
+    "abholbereit in der filiale",
+    "liegt zur abholung bereit",
+    "liegt abholbereit",
+    "wurde übergeben",
+    "in ihren briefkasten eingelegt",
+    "im briefkasten hinterlegt"
   ],
   "tomorrow_patterns": [
     "kommt morgen",
@@ -75,5 +81,5 @@
   "tracking_regex": "Ihre Sendungsnummer:\nSendungsnummer:\nIhre Sendungsnummer\nSendungsnummer\npiececode=([0-9]{10,20})\n0034[0-9]{16}\nJJD[0-9]{10,20}\nCR[0-9]{9}[A-Z]{2}\n[0-9]{12}",
   "tracking_url_regex": "(https://[^\\s\\\"'<]+dhl\\.[a-z.]+/[^\\s\\\"'<]*)",
   "default_tracking_url": "https://www.dhl.de/de/privatkunden/pakete-empfangen/verfolgen.html?piececode={tracking_id}",
-  "content_regex": "(?:Sendung von|Paket von)\\s+([A-Za-z0-9ÄÖÜäöüß &._-]{2,35}?)(?:\\s+(?:mit|ist|wird|kommt|wurde|an|in|[0-9]{8})|[,.!\\n\\r\\\"<>]|$)"
+  "content_regex": "Ihre\\s+(?:\\*\\*)?([A-Za-z0-9ÄÖÜäöüß &._()/-]{2,50}?)(?:\\*\\*)?\\s+Sendung\n(?:Sendung von|Paket von)\\s+([A-Za-z0-9ÄÖÜäöüß &._-]{2,35}?)(?:\\s+(?:mit|ist|wird|kommt|wurde|an|in|[0-9]{8})|[,.!\\n\\r\\\"<>]|$)"
 }
