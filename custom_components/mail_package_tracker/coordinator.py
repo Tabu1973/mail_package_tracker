@@ -41,6 +41,7 @@ from .const import (
     STORAGE_KEY,
     STORAGE_VERSION,
 )
+from .dhl_tracker import async_fetch_dhl_tracking
 from .imap_client import fetch_recent_emails_sync
 from .parser import clean_email_body, parse_email_date, parse_email_with_rules
 
@@ -618,9 +619,58 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return self.recent_emails
 
+    async def async_refresh_carrier_tracking(self) -> None:
+        """Poll carrier public tracking API for active shipments."""
+        for pkg in list(self.packages.values()):
+            if pkg.get("status") == STATUS_DELIVERED:
+                continue
+
+            tid = str(pkg.get("tracking_id") or "").strip()
+            dhl_code = ""
+            for cid in [tid] + list(pkg.get("all_ids") or []):
+                cstr = str(cid or "").strip()
+                if cstr.startswith("0034") or cstr.startswith("JJD"):
+                    dhl_code = cstr
+                    break
+
+            if not dhl_code and pkg.get("carrier_id") == "dhl" and tid:
+                dhl_code = tid
+
+            if dhl_code:
+                try:
+                    info = await async_fetch_dhl_tracking(self.hass, dhl_code)
+                    if info:
+                        if info.get("status_text"):
+                            pkg["dhl_status"] = info["status_text"]
+                        if info.get("progress"):
+                            pkg["dhl_progress"] = info["progress"]
+                        if info.get("last_event"):
+                            pkg["dhl_event"] = info["last_event"]
+
+                        if info["is_delivered"]:
+                            pkg["status"] = STATUS_DELIVERED
+                            deliv_d = info.get("current_status_date")
+                            pkg["zugestellt_am"] = str(deliv_d)[:10] if deliv_d else date.today().isoformat()
+                            pkg["zustellung"] = compute_display_timing(pkg)
+                            _LOGGER.info("DHL live tracking marked package %s as delivered", pkg.get("uid"))
+                        else:
+                            if info.get("expected_date"):
+                                pkg["erwartet_am"] = str(info["expected_date"])[:10]
+                            step = info.get("progress_step", 0)
+                            if step == 4 or "in zustellung" in (info.get("status_text") or "").lower():
+                                pkg["status"] = STATUS_OUT_FOR_DELIVERY
+                                pkg["zustellung"] = TIMING_TODAY
+                            else:
+                                if pkg.get("status") != STATUS_OUT_FOR_DELIVERY:
+                                    pkg["status"] = STATUS_IN_TRANSIT
+                                    pkg["zustellung"] = compute_display_timing(pkg)
+                except Exception as err:
+                    _LOGGER.debug("Error updating DHL tracking for %s: %s", dhl_code, err)
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Periodic coordinator update."""
         await self.async_fetch_imap_now()
+        await self.async_refresh_carrier_tracking()
         self._cleanup_old_packages()
         await self.async_save_storage()
         return self._build_state_dict()

@@ -16,8 +16,10 @@ import homeassistant.helpers.config_validation as cv
 from . import (
     const as _const_mod,
     coordinator as _coord_mod,
+    dhl_tracker as _dhl_mod,
     panel as _panel_mod,
     parser as _parser_mod,
+    sensor as _sensor_mod,
     switch as _switch_mod,
     text as _text_mod,
 )
@@ -63,8 +65,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     importlib.reload(_const_mod)
     importlib.reload(_parser_mod)
+    importlib.reload(_dhl_mod)
     importlib.reload(_coord_mod)
     importlib.reload(_panel_mod)
+    importlib.reload(_sensor_mod)
     importlib.reload(_switch_mod)
     importlib.reload(_text_mod)
 

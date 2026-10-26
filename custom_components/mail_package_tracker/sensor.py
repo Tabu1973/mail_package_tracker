@@ -253,6 +253,9 @@ class DynamicPackageSensor(CoordinatorEntity[MailPackageCoordinator], SensorEnti
             "zugestellt_am": pkg.get("zugestellt_am"),
             "sender": pkg.get("sender", ""),
             "subject": pkg.get("subject", ""),
+            "dhl_status": pkg.get("dhl_status"),
+            "dhl_progress": pkg.get("dhl_progress"),
+            "dhl_event": pkg.get("dhl_event"),
         }
 
     @callback
