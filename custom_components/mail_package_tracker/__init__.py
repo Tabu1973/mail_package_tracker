@@ -42,6 +42,7 @@ SERVICE_REMOVE_PACKAGE = "remove_package"
 SERVICE_CLEAR_DELIVERED = "clear_delivered"
 SERVICE_PROCESS_EMAIL = "process_email"
 SERVICE_MARK_DELIVERED = "mark_delivered"
+SERVICE_MERGE_PACKAGES = "merge_packages"
 
 SCHEMA_REMOVE_PACKAGE = vol.Schema(
     {
@@ -55,6 +56,13 @@ SCHEMA_PROCESS_EMAIL = vol.Schema(
         vol.Required("subject"): cv.string,
         vol.Optional("text", default=""): cv.string,
         vol.Optional("html", default=""): cv.string,
+    }
+)
+
+SCHEMA_MERGE_PACKAGES = vol.Schema(
+    {
+        vol.Required("source_package"): cv.string,
+        vol.Required("target_package"): cv.string,
     }
 )
 
@@ -106,9 +114,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 
 def _register_services(hass: HomeAssistant) -> None:
-    """Register integration services once."""
-    if hass.services.has_service(DOMAIN, SERVICE_SCAN_NOW):
-        return
+    """Register integration services."""
 
     def _get_coordinators() -> list[Any]:
         return [
@@ -155,6 +161,17 @@ def _register_services(hass: HomeAssistant) -> None:
             await coord.async_save_storage()
             coord.async_set_updated_data(coord._build_state_dict())
 
+    async def handle_merge_packages(call: ServiceCall) -> None:
+        """Manually merge two packages."""
+        src = call.data["source_package"]
+        tgt = call.data["target_package"]
+        if src.startswith("sensor."):
+            src = src.replace("sensor.", "", 1)
+        if tgt.startswith("sensor."):
+            tgt = tgt.replace("sensor.", "", 1)
+        for coord in _get_coordinators():
+            await coord.async_merge_packages(src, tgt)
+
     hass.services.async_register(DOMAIN, SERVICE_SCAN_NOW, handle_scan_now)
     hass.services.async_register(
         DOMAIN,
@@ -171,12 +188,20 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_CLEAR_DELIVERED, handle_clear_delivered
     )
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_PROCESS_EMAIL,
-        handle_process_email,
-        schema=SCHEMA_PROCESS_EMAIL,
-    )
+    if not hass.services.has_service(DOMAIN, SERVICE_PROCESS_EMAIL):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_PROCESS_EMAIL,
+            handle_process_email,
+            schema=SCHEMA_PROCESS_EMAIL,
+        )
+    if not hass.services.has_service(DOMAIN, SERVICE_MERGE_PACKAGES):
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_MERGE_PACKAGES,
+            handle_merge_packages,
+            schema=SCHEMA_MERGE_PACKAGES,
+        )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

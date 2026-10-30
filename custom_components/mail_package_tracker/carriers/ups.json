@@ -15,7 +15,10 @@
   ],
   "exclude_patterns": [
     "newsletter",
-    "rechnung"
+    "rechnung",
+    "emails.ups.com",
+    "werbung",
+    "vorschriften"
   ],
   "ordered_patterns": [],
   "in_transit_patterns": [
@@ -24,14 +27,20 @@
   ],
   "out_for_delivery_patterns": [
     "in zustellung",
-    "heute"
+    "wird heute zugestellt",
+    "zustellung heute",
+    "heute bis",
+    "heute im laufe des tages"
   ],
   "delivered_patterns": [
     "wurde zugestellt",
-    "zugestellt"
+    "zugestellt",
+    "hat ihr paket zugestellt"
   ],
   "tomorrow_patterns": [
-    "morgen"
+    "wird morgen zugestellt",
+    "zustellung morgen",
+    "morgen im laufe des tages"
   ],
   "tracking_regex": "(1Z[A-Z0-9]{16})",
   "tracking_url_regex": "(https://[^\\s\\\"'<]+ups\\.com/[^\\s\\\"'<]*)",

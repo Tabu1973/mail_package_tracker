@@ -190,6 +190,11 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for pkg in self.packages.values():
             pkg["zustellung"] = compute_display_timing(pkg)
 
+        # Reconcile duplicate merchant-carrier packages (e.g. Amazon order + DHL carrier notification)
+        reconciled = self._reconcile_merchant_carrier_packages()
+        if reconciled:
+            await self.async_save_storage()
+
     async def async_save_storage(self) -> None:
         """Save current state to Home Assistant storage."""
         await self.store.async_save(
@@ -319,14 +324,66 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if new_ids & ex_ids:
                     matching_uids.append(existing_uid)
 
+        # Smart merchant-carrier linking: If DHL/Hermes/DPD/UPS announces a package on behalf of a merchant
+        # (e.g. DHL email: "Ihre Amazon Sendung ist unterwegs" -> inhalt: "Amazon")
+        # and there is an active unlinked package for that merchant, link them!
+        logistics_carriers = {"dhl", "dpd", "hermes", "gls", "ups"}
+        if not matching_uids:
+            p_carrier = parsed.get("carrier_id")
+            p_content = (parsed.get("inhalt") or "").strip().lower()
+            p_subj = (parsed.get("subject") or "").strip().lower()
+
+            # Case A: Carrier email on behalf of a merchant (e.g. DHL for Amazon)
+            if p_carrier in logistics_carriers:
+                target_merchant = None
+                if p_content == "amazon" or "amazon sendung" in p_subj:
+                    target_merchant = "amazon"
+                elif p_content in self.carriers and p_content not in logistics_carriers:
+                    target_merchant = p_content
+
+                if target_merchant:
+                    unlinked = [
+                        (u, p)
+                        for u, p in self.packages.items()
+                        if p.get("carrier_id") == target_merchant
+                        and p.get("status") != STATUS_DELIVERED
+                        and not any(
+                            str(x).startswith("JJD") or str(x).startswith("0034") or str(x).startswith("1Z")
+                            for x in ([p.get("tracking_id")] + list(p.get("all_ids") or []))
+                        )
+                    ]
+                    if unlinked:
+                        unlinked.sort(key=lambda x: x[1].get("mail_date", "") or x[1].get("aktualisiert_am", ""))
+                        matching_uids.append(unlinked[0][0])
+
+            # Case B: Merchant email arrives after carrier email (e.g. Amazon email arrives, DHL already known)
+            elif p_carrier not in logistics_carriers:
+                carrier_candidates = [
+                    (u, p)
+                    for u, p in self.packages.items()
+                    if p.get("carrier_id") in logistics_carriers
+                    and p.get("status") != STATUS_DELIVERED
+                    and (
+                        (p.get("inhalt") or "").strip().lower() == p_carrier
+                        or f"{p_carrier} sendung" in (p.get("subject") or "").strip().lower()
+                    )
+                    and not any(
+                        "-" in str(x)
+                        for x in ([p.get("tracking_id")] + list(p.get("all_ids") or []))
+                    )
+                ]
+                if carrier_candidates:
+                    carrier_candidates.sort(key=lambda x: x[1].get("mail_date", "") or x[1].get("aktualisiert_am", ""))
+                    matching_uids.append(carrier_candidates[0][0])
+
         if matching_uids:
-            # Prefer the matching UID that already has the highest status rank
-            matching_uids.sort(
-                key=lambda u: STATUS_RANK.get(self.packages[u].get("status", ""), 0),
-                reverse=True,
-            )
-            uid = matching_uids[0]
-            parsed["uid"] = uid
+            # If linking a carrier email into an existing merchant package, keep the merchant UID and merchant items!
+            target_uid = matching_uids[0]
+            existing_target = self.packages[target_uid]
+            is_carrier_incoming = parsed.get("carrier_id") in logistics_carriers
+            is_target_merchant = existing_target.get("carrier_id") not in logistics_carriers
+
+            # Merge all_ids
             merged_ids = list(parsed.get("all_ids") or [])
             for m_uid in matching_uids:
                 m_pkg = self.packages[m_uid]
@@ -335,7 +392,40 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if old_id and old_id not in merged_ids:
                         merged_ids.append(old_id)
             parsed["all_ids"] = merged_ids
-            # Remove any secondary duplicate entries (e.g., an older 'Bestellt' entry now merged into 'Unterwegs')
+
+            if is_carrier_incoming and is_target_merchant:
+                # Merge incoming carrier details INTO existing merchant package
+                uid = target_uid
+                parsed["uid"] = uid
+                parsed["carrier_id"] = existing_target.get("carrier_id")
+                parsed["zusteller"] = existing_target.get("zusteller")
+                parsed["icon"] = existing_target.get("icon")
+                parsed["inhalt"] = existing_target.get("inhalt")
+                parsed["artikel_liste"] = existing_target.get("artikel_liste")
+                parsed["sender"] = existing_target.get("sender")
+                parsed["subject"] = existing_target.get("subject")
+                parsed["mail_date"] = existing_target.get("mail_date")
+                parsed["merchant_tracking_url"] = existing_target.get("tracking_url")
+            elif not is_carrier_incoming and not is_target_merchant:
+                # Incoming merchant email matches an existing carrier placeholder
+                uid = target_uid
+                existing_target["inhalt"] = parsed.get("inhalt")
+                existing_target["artikel_liste"] = parsed.get("artikel_liste")
+                existing_target["carrier_id"] = parsed.get("carrier_id")
+                existing_target["zusteller"] = parsed.get("zusteller")
+                existing_target["icon"] = parsed.get("icon")
+                existing_target["all_ids"] = merged_ids
+                existing_target["merchant_tracking_url"] = parsed.get("tracking_url")
+                return existing_target
+            else:
+                matching_uids.sort(
+                    key=lambda u: STATUS_RANK.get(self.packages[u].get("status", ""), 0),
+                    reverse=True,
+                )
+                uid = matching_uids[0]
+                parsed["uid"] = uid
+
+            # Remove secondary duplicate entries
             for extra_uid in matching_uids[1:]:
                 self.packages.pop(extra_uid, None)
 
@@ -428,8 +518,115 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._unsub_midnight()
             self._unsub_midnight = None
 
+    def _reconcile_merchant_carrier_packages(self) -> list[str]:
+        """Reconcile and merge duplicate carrier packages with active merchant packages."""
+        merged_summary = []
+        logistics_carriers = {"dhl", "dpd", "hermes", "gls", "ups"}
+
+        # 1. Purge bogus parcel carrier entries without tracking ID (e.g. newsletters)
+        for uid, pkg in list(self.packages.items()):
+            cid = pkg.get("carrier_id")
+            tid = (pkg.get("tracking_id") or "").strip()
+            all_ids = pkg.get("all_ids") or []
+            if cid in logistics_carriers and not tid and not all_ids:
+                merged_summary.append(f"Entfernt (Newsletter ohne Tracking-ID): {uid}")
+                self.packages.pop(uid, None)
+
+        # 2. Find active carrier packages representing a merchant shipment (e.g. DHL 'Amazon')
+        carrier_pkgs = []
+        for uid, pkg in list(self.packages.items()):
+            if pkg.get("status") == STATUS_DELIVERED:
+                continue
+            cid = pkg.get("carrier_id")
+            if cid not in logistics_carriers:
+                continue
+            content = (pkg.get("inhalt") or "").strip().lower()
+            subj = (pkg.get("subject") or "").strip().lower()
+            if content == "amazon" or "amazon sendung" in subj:
+                carrier_pkgs.append((uid, pkg))
+
+        # Find active unlinked merchant (Amazon) packages
+        merchant_pkgs = []
+        for uid, pkg in list(self.packages.items()):
+            if pkg.get("status") == STATUS_DELIVERED:
+                continue
+            if pkg.get("carrier_id") == "amazon":
+                has_carrier_code = any(
+                    str(x).startswith("JJD") or str(x).startswith("0034") or str(x).startswith("1Z")
+                    for x in ([pkg.get("tracking_id")] + list(pkg.get("all_ids") or []))
+                )
+                if not has_carrier_code:
+                    merchant_pkgs.append((uid, pkg))
+
+        # Sort both chronologically
+        carrier_pkgs.sort(key=lambda x: x[1].get("mail_date", "") or x[1].get("aktualisiert_am", ""))
+        merchant_pkgs.sort(key=lambda x: x[1].get("mail_date", "") or x[1].get("aktualisiert_am", ""))
+
+        for (c_uid, c_pkg), (m_uid, m_pkg) in zip(carrier_pkgs, merchant_pkgs):
+            c_tid = (c_pkg.get("tracking_id") or "").strip()
+            m_ids = list(m_pkg.get("all_ids") or [])
+            if c_tid and c_tid not in m_ids:
+                m_ids.append(c_tid)
+            for cid in c_pkg.get("all_ids") or []:
+                if cid and cid not in m_ids:
+                    m_ids.append(cid)
+            m_pkg["all_ids"] = m_ids
+
+            # Inherit carrier delivery details
+            if c_pkg.get("tracking_url"):
+                m_pkg["merchant_tracking_url"] = m_pkg.get("tracking_url")
+                m_pkg["tracking_url"] = c_pkg["tracking_url"]
+            if c_pkg.get("erwartet_am"):
+                m_pkg["erwartet_am"] = c_pkg["erwartet_am"]
+            if c_pkg.get("zustellung"):
+                m_pkg["zustellung"] = c_pkg["zustellung"]
+            for attr in ("dhl_status", "dhl_progress", "dhl_event"):
+                if c_pkg.get(attr):
+                    m_pkg[attr] = c_pkg[attr]
+
+            self.packages.pop(c_uid, None)
+            merged_summary.append(f"Zusammengeführt: {c_uid} ({c_tid}) -> {m_uid} ({m_pkg.get('inhalt')[:40]})")
+
+        return merged_summary
+
+    async def async_merge_packages(self, source_uid: str, target_uid: str) -> bool:
+        """Manually merge source_uid package into target_uid package."""
+        if source_uid not in self.packages or target_uid not in self.packages:
+            return False
+        s_pkg = self.packages[source_uid]
+        t_pkg = self.packages[target_uid]
+
+        merged_ids = list(t_pkg.get("all_ids") or [])
+        s_tid = s_pkg.get("tracking_id")
+        if s_tid and s_tid not in merged_ids:
+            merged_ids.append(s_tid)
+        for cid in s_pkg.get("all_ids") or []:
+            if cid and cid not in merged_ids:
+                merged_ids.append(cid)
+        t_pkg["all_ids"] = merged_ids
+
+        # If source is a parcel carrier, inherit live tracking details
+        if s_pkg.get("carrier_id") in {"dhl", "dpd", "hermes", "gls", "ups"}:
+            if s_pkg.get("tracking_url"):
+                t_pkg["merchant_tracking_url"] = t_pkg.get("tracking_url")
+                t_pkg["tracking_url"] = s_pkg["tracking_url"]
+            if s_pkg.get("erwartet_am"):
+                t_pkg["erwartet_am"] = s_pkg["erwartet_am"]
+            if s_pkg.get("zustellung"):
+                t_pkg["zustellung"] = s_pkg["zustellung"]
+            for attr in ("dhl_status", "dhl_progress", "dhl_event"):
+                if s_pkg.get(attr):
+                    t_pkg[attr] = s_pkg[attr]
+
+        self.packages.pop(source_uid, None)
+        await self.async_save_storage()
+        self.async_set_updated_data(self._build_state_dict())
+        _LOGGER.info("Manually merged package %s into %s", source_uid, target_uid)
+        return True
+
     def _cleanup_old_packages(self) -> None:
         """Remove delivered packages older than cleanup_days and refresh display timing."""
+        self._reconcile_merchant_carrier_packages()
         cleanup_days = int(self.get_config(CONF_CLEANUP_DAYS, DEFAULT_CLEANUP_DAYS))
         today = date.today()
         to_remove: list[str] = []

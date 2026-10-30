@@ -558,6 +558,20 @@ def parse_email_with_rules(
         all_ids = _extract_all_tracking_by_pattern(combined_raw, tracking_regex)
     tracking_id = all_ids[0] if all_ids else ""
 
+    # Pure parcel carrier services require a valid tracking number to avoid newsletter/marketing false-positives
+    if carrier_id in ("ups", "dhl", "hermes", "dpd", "gls") and not tracking_id:
+        return {
+            "matched": False,
+            "carrier_id": carrier_id,
+            "carrier_name": carrier_name,
+            "reason": (
+                f"Paketdienst '{carrier_name}' erkannt, aber keine gültige Sendungsnummer "
+                "in der E-Mail gefunden (vermutlich Newsletter oder Werbemail)."
+            ),
+            "sender": sender_clean,
+            "subject": subject_clean,
+        }
+
     # 5. Extract Content / Product Name (supports section headers like 'Artikel in dieser Lieferung', bullets '*', or Regex)
     content = ""
     items_found: list[str] = []

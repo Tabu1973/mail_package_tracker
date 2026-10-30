@@ -50,3 +50,22 @@ process_email:
       selector:
         text:
           multiline: true
+
+merge_packages:
+  name: Pakete zusammenführen
+  description: Führt zwei Pakete zusammen (z.B. eine DHL-Sendung in eine Amazon-Bestellung mergen).
+  fields:
+    source_package:
+      name: Quell-Paket (wird entfernt)
+      description: Entity-ID oder Unique-ID des Quell-Pakets (z.B. sensor.paket_dhl_123).
+      required: true
+      example: "sensor.paket_dhl_jjd00039001671336107"
+      selector:
+        text:
+    target_package:
+      name: Ziel-Paket (übernimmt Tracking)
+      description: Entity-ID oder Unique-ID des Ziel-Pakets (z.B. sensor.paket_amazon_123).
+      required: true
+      example: "sensor.paket_amazon_304_5468427_6759560"
+      selector:
+        text:
