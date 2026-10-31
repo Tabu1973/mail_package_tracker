@@ -353,7 +353,15 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         )
                     ]
                     if unlinked:
-                        unlinked.sort(key=lambda x: x[1].get("mail_date", "") or x[1].get("aktualisiert_am", ""))
+                        carrier_dt = parse_email_date(date_str) if date_str else date.today()
+
+                        def _dist_to_carrier(item: tuple[str, dict[str, Any]]) -> float:
+                            m_pkg = item[1]
+                            d = parse_email_date(m_pkg.get("mail_date") or m_pkg.get("aktualisiert_am"))
+                            diff = (carrier_dt - d).days
+                            return float(diff) if diff >= 0 else float(abs(diff) * 3)
+
+                        unlinked.sort(key=_dist_to_carrier)
                         matching_uids.append(unlinked[0][0])
 
             # Case B: Merchant email arrives after carrier email (e.g. Amazon email arrives, DHL already known)
@@ -555,7 +563,26 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     str(x).startswith("JJD") or str(x).startswith("0034") or str(x).startswith("1Z")
                     for x in ([pkg.get("tracking_id")] + list(pkg.get("all_ids") or []))
                 )
-                if not has_carrier_code:
+                if has_carrier_code:
+                    continue
+
+                m_items = {
+                    item.strip().lower()
+                    for item in (pkg.get("artikel_liste") or [pkg.get("inhalt")])
+                    if item and len(item.strip()) >= 5
+                }
+                already_delivered = any(
+                    m_items.issubset({
+                        it.strip().lower()
+                        for it in (p_other.get("artikel_liste") or [p_other.get("inhalt")])
+                        if it and len(it.strip()) >= 5
+                    })
+                    for u_other, p_other in self.packages.items()
+                    if u_other != uid
+                    and p_other.get("carrier_id") == "amazon"
+                    and p_other.get("status") == STATUS_DELIVERED
+                )
+                if not already_delivered:
                     merchant_pkgs.append((uid, pkg))
 
         # Sort both chronologically
@@ -691,6 +718,40 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         primary["tracking_url"] = dup["tracking_url"]
                     self.packages.pop(dup_uid, None)
                     _LOGGER.info("Merged duplicate package %s into %s", dup_uid, prim_uid)
+
+        # Check for duplicate merchant packages where all items were already delivered in another package
+        for u_active, p_active in list(self.packages.items()):
+            if p_active.get("status") == STATUS_DELIVERED:
+                continue
+            c_active = p_active.get("carrier_id")
+            if not c_active or c_active in logistics_carriers:
+                continue
+            active_items = {
+                item.strip().lower()
+                for item in (p_active.get("artikel_liste") or [p_active.get("inhalt")])
+                if item and len(item.strip()) >= 5
+            }
+            if not active_items:
+                continue
+            for u_other, p_other in list(self.packages.items()):
+                if u_other == u_active or p_other.get("carrier_id") != c_active:
+                    continue
+                if p_other.get("status") != STATUS_DELIVERED:
+                    continue
+                other_items = {
+                    item.strip().lower()
+                    for item in (p_other.get("artikel_liste") or [p_other.get("inhalt")])
+                    if item and len(item.strip()) >= 5
+                }
+                if active_items.issubset(other_items):
+                    _LOGGER.info(
+                        "Cleaning up duplicate active package %s (%s) because items are already delivered in %s",
+                        u_active,
+                        p_active.get("inhalt", "")[:35],
+                        u_other,
+                    )
+                    self.packages.pop(u_active, None)
+                    break
 
         for uid, pkg in self.packages.items():
             # If package UID indicates a shop (e.g. 'paket_sunlu...') but carrier_id became 'dhl', restore the shop name!

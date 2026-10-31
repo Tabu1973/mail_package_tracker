@@ -56,6 +56,16 @@ async def async_setup_entry(
     created_carriers: set[str] = set()
     created_packages: set[str] = set()
 
+    # Clean up orphan package entities from entity registry
+    ent_reg = er.async_get(hass)
+    orphan_entries = [
+        ent for ent in er.async_entries_for_config_entry(ent_reg, entry.entry_id)
+        if ent.unique_id.startswith("paket_") and ent.unique_id not in coordinator.packages
+    ]
+    for ent in orphan_entries:
+        _LOGGER.info("Removing orphaned package entity from registry: %s (%s)", ent.entity_id, ent.unique_id)
+        ent_reg.async_remove(ent.entity_id)
+
     for cid in coordinator.carriers:
         created_carriers.add(cid)
         entities.append(CarrierDeviceSensor(coordinator, entry, cid))
