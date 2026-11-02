@@ -26,6 +26,7 @@ from .const import (
     CONF_SCAN_INTERVAL,
     DEFAULT_CARRIERS,
     DEFAULT_CLEANUP_DAYS,
+    LOGISTICS_CARRIERS,
     DEFAULT_DAYS_BACK,
     DEFAULT_IMAP_FOLDER,
     DEFAULT_IMAP_HOST,
@@ -654,6 +655,7 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     def _cleanup_old_packages(self) -> None:
         """Remove delivered packages older than cleanup_days and refresh display timing."""
         self._reconcile_merchant_carrier_packages()
+        logistics_carriers = LOGISTICS_CARRIERS
         cleanup_days = int(self.get_config(CONF_CLEANUP_DAYS, DEFAULT_CLEANUP_DAYS))
         today = date.today()
         to_remove: list[str] = []

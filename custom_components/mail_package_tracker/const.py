@@ -28,6 +28,8 @@ DEFAULT_DAYS_BACK = 2
 DEFAULT_SCAN_INTERVAL = 5  # minutes
 DEFAULT_CLEANUP_DAYS = 7
 
+LOGISTICS_CARRIERS: frozenset[str] = frozenset({"dhl", "dpd", "hermes", "gls", "ups"})
+
 STATUS_ORDERED = "Bestellt"
 STATUS_IN_TRANSIT = "Unterwegs"
 STATUS_OUT_FOR_DELIVERY = "In Zustellung"
