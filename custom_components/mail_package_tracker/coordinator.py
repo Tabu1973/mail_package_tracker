@@ -171,11 +171,27 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for cid, cdata in stored_carriers.items():
                 if cid in self.carriers and self.carriers[cid].get("is_preset"):
                     # Merge preset updates with user customizations
-                    merged = copy.deepcopy(file_presets.get(cid, DEFAULT_CARRIERS.get(cid, {})))
-                    merged.update(cdata)
+                    preset = file_presets.get(cid, DEFAULT_CARRIERS.get(cid, {}))
+                    merged = copy.deepcopy(preset)
+                    for pattern_key in (
+                        "sender_patterns",
+                        "subject_patterns",
+                        "exclude_patterns",
+                        "ordered_patterns",
+                        "in_transit_patterns",
+                        "out_for_delivery_patterns",
+                        "delivered_patterns",
+                        "tomorrow_patterns",
+                    ):
+                        preset_list = list(preset.get(pattern_key) or [])
+                        stored_list = list(cdata.get(pattern_key) or [])
+                        merged[pattern_key] = list(dict.fromkeys(preset_list + stored_list))
+                    for k, v in cdata.items():
+                        if not k.endswith("_patterns") and k not in ("languages",):
+                            merged[k] = v
                     merged.pop("languages", None)
                     if merged.get("language") not in ("de", "en"):
-                        merged["language"] = file_presets.get(cid, {}).get("language", "de")
+                        merged["language"] = preset.get("language", "de")
                     self.carriers[cid] = merged
                 else:
                     cdata.pop("languages", None)

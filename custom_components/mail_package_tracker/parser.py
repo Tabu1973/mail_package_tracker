@@ -50,9 +50,9 @@ _MONTH_NAMES_PATTERN = "|".join(_MONTHS_MAP.keys())
 
 _DELIVERY_KEYWORDS = (
     r"(?:\b(?:ankunft|zustellung|zustelltag|zustelltermin|lieferung|liefertermin|lieferdatum|delivery|arriving|zugestellt)\b"
-    r"[:\s]*(?:voraussichtlich\s+|neuer\s+|neuer voraussichtlicher\s+)?(?:am\s+|bis\s+|ist\s+)?)"
-    r"|(?:\b(?:voraussichtlich|neuer\s+liefertermin)\s+(?:am\s+|bis\s+)?)"
-    r"|(?:\b(?:am|bis)\s+(?:dem\s+|den\s+|der\s+)?(?=" + _WEEKDAYS + r"|\d))"
+    r"[:\s]*(?:voraussichtlich\s+|neuer\s+|neuer voraussichtlicher\s+)?(?:am\s+|bis\s+(?:zum\s+|zur\s+)?|bis\s+|ist\s+)?)"
+    r"|(?:\b(?:voraussichtlich|neuer\s+liefertermin)\s+(?:am\s+|bis\s+(?:zum\s+|zur\s+)?|bis\s+)?)"
+    r"|(?:\b(?:am|bis)\s+(?:zum\s+|zur\s+|dem\s+|den\s+|der\s+)?(?=" + _WEEKDAYS + r"|\d))"
 )
 
 # 1. Matches dates with delivery keyword context or preposition + optional weekday:

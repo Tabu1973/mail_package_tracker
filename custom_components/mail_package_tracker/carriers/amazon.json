@@ -33,7 +33,11 @@
     "dein paket wurde versendet",
     "wurde versandt",
     "wurde versendet",
-    "unterwegs"
+    "unterwegs",
+    "aktualisierung der lieferung",
+    "dein paket verspätet sich",
+    "verspätet sich",
+    "voraussichtliche zustellung"
   ],
   "out_for_delivery_patterns": [
     "in zustellung:",
