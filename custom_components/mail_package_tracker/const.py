@@ -322,6 +322,10 @@ DEFAULT_CARRIERS: dict[str, dict[str, Any]] = {
             "promotion",
             "sale",
             "rabatt",
+            "mail.aliexpress.com",
+            "ae-yy-notify",
+            "aeug-preferences",
+            "ae-week-digest",
         ],
         "ordered_patterns": [
             "zahlung bestätigt",
@@ -331,6 +335,10 @@ DEFAULT_CARRIERS: dict[str, dict[str, Any]] = {
             "wurde versandt",
             "unterwegs",
             "im zielland angekommen",
+            "vom kurier abgeholt",
+            "auf bestätigung wird gewartet",
+            "wird auf bestellung versendet",
+            "auf dem weg",
         ],
         "out_for_delivery_patterns": [
             "in zustellung",
@@ -342,10 +350,14 @@ DEFAULT_CARRIERS: dict[str, dict[str, Any]] = {
             "erfolgreich zugestellt",
         ],
         "tomorrow_patterns": ["morgen"],
-        "tracking_regex": r"(0034[0-9]{16}|[A-Z]{2}[0-9]{9}[A-Z]{2}|[0-9]{12,16})",
+        "tracking_regex": r"Packstück[:\s#]*(0034[0-9]{16}|[A-Z0-9]{10,22})|Paket[:\s#]*(0034[0-9]{16})|(0034[0-9]{16})|([A-Z]{2}[0-9]{9}[A-Z]{2})|Bestellung[:\s#]*([0-9]{12,18})",
         "tracking_url_regex": r"(https://[^\s\"'<]+(?:aliexpress\.com|cainiao\.com|dhl\.de)[^\s\"'<]*)",
         "default_tracking_url": "https://www.aliexpress.com/p/order/index.html",
-        "content_regex": r"Bestellung\s+([0-9]+)",
+        "content_regex": (
+            r"Paketinfos(?:\s*\n\s*\.)*\s*\n\s*((?!\.+\s*$)[^\n\r]{4,120})"
+            r"|Empfang bestätigen(?:\s*\n\s*\.)*\s*\n\s*((?!\.+\s*$)[^\n\r]{4,120})"
+            r"|(?:^|\n)((?!\.+\s*$)[^\n\r]{5,120})\r?\n(?:\s*\r?\n)?(?!\.+\s*$)[^\n\r]{2,100}\r?\n(?:\s*\r?\n)?x[0-9]+\b"
+        ),
     },
     "sunlu": {
         "schema_version": 1,

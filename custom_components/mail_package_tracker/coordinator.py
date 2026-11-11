@@ -6,10 +6,12 @@ from datetime import date, datetime, timedelta
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any, Callable
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -44,9 +46,68 @@ from .const import (
 )
 from .dhl_tracker import async_fetch_dhl_tracking
 from .imap_client import fetch_recent_emails_sync
-from .parser import clean_email_body, parse_email_date, parse_email_with_rules
+from .parser import (
+    clean_email_body,
+    extract_rowan_correlation_ids,
+    parse_email_date,
+    parse_email_with_rules,
+)
 
 _LOGGER = logging.getLogger(__name__)
+
+_LEGACY_PRESET_REGEXES: dict[str, dict[str, set[str]]] = {
+    "aliexpress": {
+        "content_regex": {r"Bestellung\s+([0-9]+)"},
+        "tracking_regex": {r"(0034[0-9]{16}|[A-Z]{2}[0-9]{9}[A-Z]{2}|[0-9]{12,16})"},
+    }
+}
+
+_PLACEHOLDER_CONTENT_RE = re.compile(
+    r"^(?:(?:paket|sendung)\s+[a-z0-9_-]{8,}|(?:ihre\s+)?(?:amazon|dhl|dpd|hermes|gls|ups|aliexpress|sunlu)\s+sendung)$",
+    re.IGNORECASE,
+)
+
+
+def _package_match_ids(pkg: dict[str, Any]) -> set[str]:
+    """Return normalized tracking, order, and correlation IDs for matching a package."""
+    raw_ids = [pkg.get("tracking_id")] + list(pkg.get("all_ids") or [])
+    for url_key in ("tracking_url", "merchant_tracking_url"):
+        url_val = str(pkg.get(url_key) or "")
+        if "rowan_msg_id=" in url_val:
+            raw_ids.extend(extract_rowan_correlation_ids(url_val))
+    return {
+        str(x).strip().lower()
+        for x in raw_ids
+        if x and str(x).strip() and len(str(x).strip()) >= 5
+    }
+
+
+def _is_placeholder_content(text: str | None) -> bool:
+    """Return True if content is just a tracking/order number or generic fallback subject."""
+    val = (text or "").strip()
+    if not val or val.isdigit():
+        return True
+    low = val.lower()
+    if low in ("amazon", "dhl", "dpd", "hermes", "gls", "ups", "aliexpress", "sunlu", "paketdienst"):
+        return True
+    if _PLACEHOLDER_CONTENT_RE.match(val):
+        return True
+    if any(p in low for p in ("wird zugestellt", "wurde zugestellt", "paketankündigung", "ihre dhl sendung")):
+        return True
+    return False
+
+
+def _upgrade_package_content(target: dict[str, Any], source: dict[str, Any]) -> None:
+    """Prefer real product descriptions over bare IDs or generic carrier placeholders."""
+    src_inhalt = (source.get("inhalt") or "").strip()
+    if not src_inhalt or _is_placeholder_content(src_inhalt):
+        return
+    tgt_inhalt = (target.get("inhalt") or "").strip()
+    src_items = source.get("artikel_liste") or [src_inhalt]
+    tgt_items = target.get("artikel_liste") or ([tgt_inhalt] if tgt_inhalt else [])
+    if _is_placeholder_content(tgt_inhalt) or len(src_items) > len(tgt_items):
+        target["inhalt"] = src_inhalt
+        target["artikel_liste"] = src_items
 
 
 def compute_display_timing(pkg: dict[str, Any]) -> str:
@@ -188,6 +249,9 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         merged[pattern_key] = list(dict.fromkeys(preset_list + stored_list))
                     for k, v in cdata.items():
                         if not k.endswith("_patterns") and k not in ("languages",):
+                            legacy = _LEGACY_PRESET_REGEXES.get(cid, {}).get(k, set())
+                            if isinstance(v, str) and v in legacy and preset.get(k):
+                                continue
                             merged[k] = v
                     merged.pop("languages", None)
                     if merged.get("language") not in ("de", "en"):
@@ -207,9 +271,11 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for pkg in self.packages.values():
             pkg["zustellung"] = compute_display_timing(pkg)
 
-        # Reconcile duplicate merchant-carrier packages (e.g. Amazon order + DHL carrier notification)
+        # Reconcile duplicate merchant-carrier packages and cross-package ID duplicates
         reconciled = self._reconcile_merchant_carrier_packages()
-        if reconciled:
+        deduped = self._deduplicate_packages_by_ids()
+        if reconciled or deduped:
+            self._cleanup_orphan_entities_in_registry()
             await self.async_save_storage()
 
     async def async_save_storage(self) -> None:
@@ -328,17 +394,11 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if x and x.strip()
         }
 
-        # Deduplicate across all packages by any matching tracking_id or order_id
+        # Deduplicate across all packages by any matching tracking_id, order_id, or correlation ID
         matching_uids: list[str] = []
         if new_ids:
             for existing_uid, existing_pkg in list(self.packages.items()):
-                ex_tid = (existing_pkg.get("tracking_id") or "").strip()
-                ex_ids = {
-                    x.strip().lower()
-                    for x in ([ex_tid] + list(existing_pkg.get("all_ids") or []))
-                    if x and x.strip()
-                }
-                if new_ids & ex_ids:
+                if new_ids & _package_match_ids(existing_pkg):
                     matching_uids.append(existing_uid)
 
         # Smart merchant-carrier linking: If DHL/Hermes/DPD/UPS announces a package on behalf of a merchant
@@ -451,8 +511,14 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 parsed["uid"] = uid
 
             # Remove secondary duplicate entries
+            removed_any = False
             for extra_uid in matching_uids[1:]:
-                self.packages.pop(extra_uid, None)
+                extra_pkg = self.packages.pop(extra_uid, None)
+                if extra_pkg:
+                    removed_any = True
+                    _upgrade_package_content(parsed, extra_pkg)
+            if removed_any:
+                self._cleanup_orphan_entities_in_registry()
 
         existing = self.packages.get(uid)
         is_new = existing is None
@@ -462,8 +528,13 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             old_rank = STATUS_RANK.get(existing.get("status", ""), 0)
             new_rank = STATUS_RANK.get(parsed.get("status", ""), 0)
             if old_rank > new_rank:
-                # Still keep merged all_ids on the existing higher-rank package
-                existing["all_ids"] = parsed.get("all_ids") or existing.get("all_ids", [])
+                merged_ids = list(existing.get("all_ids") or [])
+                for nid in parsed.get("all_ids") or []:
+                    if nid and nid not in merged_ids:
+                        merged_ids.append(nid)
+                existing["all_ids"] = merged_ids
+                _upgrade_package_content(existing, parsed)
+                existing["zustellung"] = compute_display_timing(existing)
                 return existing
 
         # Preserve original zugestellt_am if already delivered earlier
@@ -474,14 +545,13 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if existing and existing.get("erwartet_am") and not parsed.get("erwartet_am"):
             parsed["erwartet_am"] = existing["erwartet_am"]
 
-        # Preserve more descriptive content and shop name if new email is from carrier / has generic subject
-        if existing and existing.get("inhalt"):
+        # Preserve more descriptive content if new email only yields a placeholder
+        if existing and existing.get("inhalt") and not _is_placeholder_content(existing.get("inhalt")):
             parsed_inhalt = parsed.get("inhalt", "")
-            # If existing has real items or longer descriptive content, keep it!
-            if existing.get("artikel_liste") and len(existing.get("artikel_liste", [])) > 1:
+            if len(existing.get("artikel_liste") or []) > len(parsed.get("artikel_liste") or []):
                 parsed["inhalt"] = existing["inhalt"]
                 parsed["artikel_liste"] = existing["artikel_liste"]
-            elif any(k in parsed_inhalt.lower() for k in ("sendung", "paket", "ihre", "logistics", "express")):
+            elif _is_placeholder_content(parsed_inhalt):
                 parsed["inhalt"] = existing["inhalt"]
                 parsed["artikel_liste"] = existing.get("artikel_liste", [existing["inhalt"]])
 
@@ -663,10 +733,98 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     t_pkg[attr] = s_pkg[attr]
 
         self.packages.pop(source_uid, None)
+        self._cleanup_orphan_entities_in_registry()
         await self.async_save_storage()
         self.async_set_updated_data(self._build_state_dict())
         _LOGGER.info("Manually merged package %s into %s", source_uid, target_uid)
         return True
+
+    def _cleanup_orphan_entities_in_registry(self) -> None:
+        """Remove Home Assistant entity registry entries for purged or merged packages."""
+        try:
+            ent_reg = er.async_get(self.hass)
+            for ent in list(er.async_entries_for_config_entry(ent_reg, self.entry.entry_id)):
+                if ent.unique_id.startswith("paket_") and ent.unique_id not in self.packages:
+                    _LOGGER.info(
+                        "Removing orphaned/merged package entity from registry: %s (%s)",
+                        ent.entity_id,
+                        ent.unique_id,
+                    )
+                    ent_reg.async_remove(ent.entity_id)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _deduplicate_packages_by_ids(self) -> int:
+        """Merge packages sharing any tracking, order, or Rowan correlation ID."""
+        merged_count = 0
+        uids = list(self.packages.keys())
+        for i in range(len(uids)):
+            u1 = uids[i]
+            if u1 not in self.packages:
+                continue
+            p1 = self.packages[u1]
+            ids1 = _package_match_ids(p1)
+            for j in range(i + 1, len(uids)):
+                u2 = uids[j]
+                if u2 not in self.packages:
+                    continue
+                p2 = self.packages[u2]
+                ids2 = _package_match_ids(p2)
+                if not (ids1 & ids2):
+                    continue
+
+                p1_items = len(p1.get("artikel_liste") or [])
+                p2_items = len(p2.get("artikel_liste") or [])
+                p1_rank = STATUS_RANK.get(p1.get("status", ""), 0)
+                p2_rank = STATUS_RANK.get(p2.get("status", ""), 0)
+                p1_is_shop = p1.get("carrier_id") not in LOGISTICS_CARRIERS
+                p2_is_shop = p2.get("carrier_id") not in LOGISTICS_CARRIERS
+
+                if p1_is_shop and not p2_is_shop:
+                    primary, dup, prim_uid, dup_uid = p1, p2, u1, u2
+                elif p2_is_shop and not p1_is_shop:
+                    primary, dup, prim_uid, dup_uid = p2, p1, u2, u1
+                elif p1_rank != p2_rank:
+                    if p1_rank > p2_rank:
+                        primary, dup, prim_uid, dup_uid = p1, p2, u1, u2
+                    else:
+                        primary, dup, prim_uid, dup_uid = p2, p1, u2, u1
+                elif p1_items >= p2_items:
+                    primary, dup, prim_uid, dup_uid = p1, p2, u1, u2
+                else:
+                    primary, dup, prim_uid, dup_uid = p2, p1, u2, u1
+
+                merged = list(primary.get("all_ids") or [])
+                for did in ([dup.get("tracking_id")] + list(dup.get("all_ids") or [])):
+                    if did and did not in merged:
+                        merged.append(did)
+                primary["all_ids"] = merged
+
+                prim_rank = STATUS_RANK.get(primary.get("status", ""), 0)
+                dup_rank = STATUS_RANK.get(dup.get("status", ""), 0)
+                if dup_rank > prim_rank:
+                    primary["status"] = dup["status"]
+                    primary["zustellung"] = dup.get("zustellung") or primary.get("zustellung")
+                if dup.get("zugestellt_am") and (dup_rank >= prim_rank or not primary.get("zugestellt_am")):
+                    primary["zugestellt_am"] = dup["zugestellt_am"]
+                if dup.get("erwartet_am") and (dup_rank >= prim_rank or not primary.get("erwartet_am")):
+                    primary["erwartet_am"] = dup["erwartet_am"]
+                if dup.get("tracking_url"):
+                    if not primary.get("tracking_url"):
+                        primary["tracking_url"] = dup["tracking_url"]
+                    elif "dhl.de/" in dup["tracking_url"] and "dhl.de/" not in (primary.get("tracking_url") or ""):
+                        primary["merchant_tracking_url"] = primary["tracking_url"]
+                        primary["tracking_url"] = dup["tracking_url"]
+
+                _upgrade_package_content(primary, dup)
+                primary["zustellung"] = compute_display_timing(primary)
+                self.packages.pop(dup_uid, None)
+                merged_count += 1
+                _LOGGER.info("Merged duplicate package %s into %s", dup_uid, prim_uid)
+                if prim_uid != u1:
+                    break
+                ids1.update(ids2)
+        return merged_count
 
     def _cleanup_old_packages(self) -> None:
         """Remove delivered packages older than cleanup_days and refresh display timing."""
@@ -681,61 +839,8 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self.packages.pop("paket_dhl_457717046790", None)
 
         # Cross-package deduplication across self.packages
-        uids = list(self.packages.keys())
-        for i in range(len(uids)):
-            u1 = uids[i]
-            if u1 not in self.packages:
-                continue
-            p1 = self.packages[u1]
-            ids1 = {
-                x.strip().lower()
-                for x in ([p1.get("tracking_id")] + list(p1.get("all_ids") or []))
-                if x and str(x).strip() and len(str(x).strip()) >= 5
-            }
-            for j in range(i + 1, len(uids)):
-                u2 = uids[j]
-                if u2 not in self.packages:
-                    continue
-                p2 = self.packages[u2]
-                ids2 = {
-                    x.strip().lower()
-                    for x in ([p2.get("tracking_id")] + list(p2.get("all_ids") or []))
-                    if x and str(x).strip() and len(str(x).strip()) >= 5
-                }
-                if ids1 & ids2:
-                    p1_items = len(p1.get("artikel_liste") or [])
-                    p2_items = len(p2.get("artikel_liste") or [])
-                    p1_rank = STATUS_RANK.get(p1.get("status", ""), 0)
-                    p2_rank = STATUS_RANK.get(p2.get("status", ""), 0)
-                    logistics_carriers = {"dhl", "dpd", "hermes", "gls", "ups"}
-                    p1_is_shop = p1.get("carrier_id") not in logistics_carriers
-                    p2_is_shop = p2.get("carrier_id") not in logistics_carriers
-                    if p1_is_shop and not p2_is_shop:
-                        primary, dup = p1, p2
-                        prim_uid, dup_uid = u1, u2
-                    elif p2_is_shop and not p1_is_shop:
-                        primary, dup = p2, p1
-                        prim_uid, dup_uid = u2, u1
-                    elif p1_items >= p2_items:
-                        primary, dup = p1, p2
-                        prim_uid, dup_uid = u1, u2
-                    else:
-                        primary, dup = p2, p1
-                        prim_uid, dup_uid = u2, u1
-                    merged = list(primary.get("all_ids") or [])
-                    for did in ([dup.get("tracking_id")] + list(dup.get("all_ids") or [])):
-                        if did and did not in merged:
-                            merged.append(did)
-                    primary["all_ids"] = merged
-                    if p2_rank > p1_rank:
-                        primary["status"] = dup["status"]
-                        primary["zustellung"] = dup.get("zustellung") or primary.get("zustellung")
-                    if dup.get("erwartet_am"):
-                        primary["erwartet_am"] = dup["erwartet_am"]
-                    if dup.get("tracking_url") and not primary.get("tracking_url"):
-                        primary["tracking_url"] = dup["tracking_url"]
-                    self.packages.pop(dup_uid, None)
-                    _LOGGER.info("Merged duplicate package %s into %s", dup_uid, prim_uid)
+        if self._deduplicate_packages_by_ids():
+            self._cleanup_orphan_entities_in_registry()
 
         # Check for duplicate merchant packages where all items were already delivered in another package
         for u_active, p_active in list(self.packages.items()):
@@ -769,6 +874,7 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         u_other,
                     )
                     self.packages.pop(u_active, None)
+                    self._cleanup_orphan_entities_in_registry()
                     break
 
         for uid, pkg in self.packages.items():
@@ -819,8 +925,10 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 except ValueError:
                     pass
 
-        for uid in to_remove:
-            self.packages.pop(uid, None)
+        if to_remove:
+            for uid in to_remove:
+                self.packages.pop(uid, None)
+            self._cleanup_orphan_entities_in_registry()
 
     async def async_mark_delivered(self, uid: str) -> None:
         """Mark a package as delivered manually."""
@@ -838,6 +946,7 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Remove a specific package by UID."""
         if uid in self.packages:
             self.packages.pop(uid, None)
+            self._cleanup_orphan_entities_in_registry()
             await self.async_save_storage()
             self.async_set_updated_data(self._build_state_dict())
 
@@ -846,6 +955,8 @@ class MailPackageCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         to_del = [uid for uid, p in self.packages.items() if p.get("status") == STATUS_DELIVERED]
         for uid in to_del:
             self.packages.pop(uid, None)
+        if to_del:
+            self._cleanup_orphan_entities_in_registry()
         await self.async_save_storage()
         self.async_set_updated_data(self._build_state_dict())
 

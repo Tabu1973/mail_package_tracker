@@ -84,6 +84,26 @@ _ORDER_DATE_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+_ROWAN_MSG_ID_RE = re.compile(r"rowan_msg_id=([0-9]{12,22})\$", re.IGNORECASE)
+
+
+def extract_rowan_correlation_ids(text: str) -> list[str]:
+    """Extract AliExpress Rowan notification correlation IDs and decoded 16-digit order IDs."""
+    corr_ids: list[str] = []
+    if not text:
+        return corr_ids
+    for m in _ROWAN_MSG_ID_RE.finditer(text):
+        rowan_id = m.group(1).strip()
+        marker = f"rowan:{rowan_id}"
+        if marker not in corr_ids:
+            corr_ids.append(marker)
+        # AliExpress sharded msg IDs rotate the last 4 digits of a 16-digit order ID to the front
+        if len(rowan_id) == 16 and rowan_id.isdigit():
+            rotated = rowan_id[4:] + rowan_id[:4]
+            if rotated not in corr_ids:
+                corr_ids.append(rotated)
+    return corr_ids
+
 
 def parse_email_date(date_str: str | None) -> date:
     """Parse an RFC 2822, ISO, or localized date string into a date object, falling back to today."""
@@ -329,9 +349,22 @@ def _extract_items_by_pattern(clean_body: str, pattern_str: str) -> list[str]:
                     else:
                         for raw_line in block.splitlines():
                             ln = raw_line.strip()
-                            if not ln or set(ln) <= {"-", "=", "*", "_"}:
+                            if not ln or set(ln) <= {"-", "=", "*", "_", ".", "•", "·", "|"}:
                                 continue
-                            if any(stop in ln.lower() for stop in ("falls du fragen hast", "summe", "vielen dank", "http://", "https://")):
+                            if any(
+                                stop in ln.lower()
+                                for stop in (
+                                    "falls du fragen hast",
+                                    "summe",
+                                    "vielen dank",
+                                    "http://",
+                                    "https://",
+                                    "das könnte ihnen auch gefallen",
+                                    "mehr anzeigen",
+                                    "bestelldetails",
+                                    "versand nach",
+                                )
+                            ):
                                 break
                             if ln not in items_found:
                                 items_found.append(ln)
@@ -557,6 +590,13 @@ def parse_email_with_rules(
     if tracking_regex:
         all_ids = _extract_all_tracking_by_pattern(combined_raw, tracking_regex)
     tracking_id = all_ids[0] if all_ids else ""
+
+    if carrier_id == "aliexpress" or "aliexpress" in sender_lower:
+        for corr_id in extract_rowan_correlation_ids(f"{body_html or ''}\n{combined_raw}"):
+            if corr_id not in all_ids:
+                all_ids.append(corr_id)
+            if not tracking_id and not corr_id.startswith("rowan:"):
+                tracking_id = corr_id
 
     # Pure parcel carrier services require a valid tracking number to avoid newsletter/marketing false-positives
     if carrier_id in ("ups", "dhl", "hermes", "dpd", "gls") and not tracking_id:
